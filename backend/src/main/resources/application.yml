@@ -1,0 +1,40 @@
+spring:
+  # Enable fetching data from .env
+  config:
+    import: optional:file:.env[.properties]
+
+  application:
+    name: techstore
+
+  # Database credentials
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      # Controls how Hibernate handles the schema at startup.
+      # "validate" = Hibernate checks that the DB schema matches your entities,
+      # but never creates/alters tables itself (Flyway handles that instead).
+      # Other options: update, create, create-drop, none
+      ddl-auto: validate
+
+   
+    show-sql: false
+
+  flyway:
+    enabled: true
+
+    # migration folder location
+    locations: classpath:db/migration
+
+    # If the database already has tables but no Flyway history table yet
+    # (e.g. an existing DB you're adopting Flyway into), this creates a
+    # baseline instead of failing, treating the current schema as "version 1".
+    baseline-on-migrate: true
+
+server:
+  # Put 8000 as a backup port number in case
+  # the one in .env is taken
+  port: ${SERVER_PORT:8000}
