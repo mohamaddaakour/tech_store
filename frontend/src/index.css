@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* Create a variables in tailwind */
 @theme {
   --color-bg: #0a0a0a;
   --color-surface: #16181c;

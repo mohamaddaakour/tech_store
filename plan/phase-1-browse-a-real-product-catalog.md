@@ -303,7 +303,7 @@ export function ProductCard({ product }: { product: Product }) {
   })
 
   return (
-    <div className="bg-[var(--color-surface)] rounded-xl overflow-hidden transition-transform hover:scale-105 hover:ring-2 hover:ring-[var(--color-accent)]">
+    <div className=">
       <img src={product.imageUrl} alt={product.name} className="w-full h-40 object-cover" />
       <div className="p-4">
         <h3 className="font-semibold">{product.name}</h3>
