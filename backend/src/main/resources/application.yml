@@ -1,40 +1,85 @@
 spring:
-  # Enable fetching data from .env
+  # Load backend/.env as extra configuration. "optional:" means the app still starts if the file
+  # is missing (which is what happens in Docker, where the values arrive as real env vars instead).
   config:
     import: optional:file:.env[.properties]
 
   application:
     name: techstore
 
-  # Database credentials
+  # Database credentials. ${VAR} reads an environment variable / .env entry -- secrets must never
+  # be committed in this file.
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
 
   jpa:
+    # Closes the Hibernate session at the end of the service call instead of holding it open until
+    # the HTTP response is written. Spring Boot enables this by default and warns about it, because
+    # leaving it on means a forgotten lazy-loaded field can silently fire extra SQL while the JSON
+    # is being serialized -- a classic hidden N+1. Off means such a mistake fails loudly instead.
+    open-in-view: false
+
     hibernate:
-      # Controls how Hibernate handles the schema at startup.
-      # "validate" = Hibernate checks that the DB schema matches your entities,
-      # but never creates/alters tables itself (Flyway handles that instead).
-      # Other options: update, create, create-drop, none
+      # Controls how Hibernate treats the schema at startup.
+      #   validate    -> check the tables match the @Entity classes, change nothing  (what we want)
+      #   update      -> silently alter the schema, with no record of what it did
+      #   create-drop -> delete all data on shutdown
+      # Flyway owns the schema; Hibernate only ever checks it. If startup fails here with
+      # "missing table" or "wrong column type", the fix is a new migration, not a change to this.
       ddl-auto: validate
 
-   
+    # Set to true to see every SQL statement Hibernate runs -- useful when debugging a slow page or
+    # an N+1 query. Off by default because it is extremely noisy.
     show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
 
   flyway:
     enabled: true
 
-    # migration folder location
+    # Where the versioned V*.sql files live.
     locations: classpath:db/migration
 
-    # If the database already has tables but no Flyway history table yet
-    # (e.g. an existing DB you're adopting Flyway into), this creates a
-    # baseline instead of failing, treating the current schema as "version 1".
+    # Only relevant when adopting Flyway into a database that already has tables: it writes a
+    # baseline row instead of refusing to start.
     baseline-on-migrate: true
 
 server:
-  # Put 8000 as a backup port number in case
-  # the one in .env is taken
+  # 8000 is a fallback if SERVER_PORT is not set in .env.
   port: ${SERVER_PORT:8000}
+
+# ---------------------------------------------------------------------------
+# Application settings (our own, not Spring's).
+#
+# These are bound to typed records in com.techstore.config -- JwtProperties and CorsProperties --
+# so a typo or a missing value is caught at startup rather than at runtime.
+# ---------------------------------------------------------------------------
+app:
+  jwt:
+    # HMAC-SHA256 signing key. Must be at least 32 characters; JwtProperties enforces that and the
+    # app refuses to start otherwise. The fallback after ":" exists only so a fresh clone boots
+    # without setup -- it is public knowledge, so set a real JWT_SECRET in backend/.env.
+    secret: ${JWT_SECRET:dev-only-insecure-secret-change-me-in-env-file}
+
+    # Short: an access token cannot be revoked, so its lifetime is the damage window if one leaks.
+    access-token-ttl: 15m
+
+    # Long: this is how long a user stays signed in without re-entering their password.
+    refresh-token-ttl: 30d
+
+  cors:
+    # Browser origins allowed to call this API. Exact origins, never "*" -- we send credentials
+    # (the refresh cookie), and the CORS spec forbids wildcard-plus-credentials.
+    allowed-origins:
+      - http://localhost:5173   # Vite dev server
+      - http://localhost:4173   # `npm run preview`, the production build served locally
+
+logging:
+  level:
+    # Uncomment while debugging a 401/403 you cannot explain: it logs which rule rejected the
+    # request and why.
+    # org.springframework.security: DEBUG
+    com.techstore: INFO

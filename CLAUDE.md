@@ -4,12 +4,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-This repo is at the very start of a large, multi-phase build described in `SUBJECT.md` (read it in full before planning any nontrivial work — it is the authoritative spec). Current actual state:
+Phases 1–3 of `plan/roadmap.md` are implemented and verified end to end (catalog, guest cart, JWT auth + RBAC).
 
-- `frontend/` — a stock `npm create vite@latest -- --template react-ts` scaffold. No app code beyond `App.tsx`/`main.tsx` defaults yet.
-- `backend/` — empty directory. No Spring Boot project has been initialized yet.
+**Two conflicting phase numberings exist — this matters.** `SUBJECT.md` numbers phases 0–11 with Phase 1 = Authentication. `plan/roadmap.md` plus `plan/phase-N-*.md` number 1–10 with Phase 1 = product catalog and Phase 3 = accounts/RBAC. **The `plan/` numbering is the one being followed.** When the user says "phase N", assume `plan/phase-N-*.md`. `SUBJECT.md` remains the authoritative spec for *what* the finished product is; `plan/` is the authoritative build order.
 
-Do not assume any architecture, entities, or endpoints exist beyond what you find in the working tree — `SUBJECT.md` describes the target end state (phases 0–11 plus bonus features), not what's built. When starting backend work, initialize the Spring Boot project per Phase 0 of `SUBJECT.md` (Maven, Java 21+, Spring Boot, PostgreSQL, Flyway, Swagger) rather than assuming a layout.
+Current state:
+
+- `backend/` — Spring Boot 4.1.0 / Java 21, layered by feature: `auth/`, `product/`, `common/`, `config/`, `health/`. Flyway owns the schema (`V1` products, `V2` users); Hibernate runs `ddl-auto: validate` and never modifies it.
+- `frontend/` — React 19 + TS + Vite 8 + Tailwind v4. Design tokens in `src/index.css` `@theme`; primitives in `src/components/ui/`; feature components in `components/{products,cart,auth,layout}/`; `api/`, `hooks/`, `lib/`, `store/`, `types/`.
+
+Later phases (4–10: checkout, Stripe, admin catalog, AI assistant, WebSockets, caching/deploy) are **not** built. Do not assume entities or endpoints beyond what is in the working tree.
+
+## Non-obvious constraints discovered while building (read before touching the backend)
+
+These cost real debugging time; they are not guessable from the code:
+
+- **Spring Boot 4 uses Jackson 3.** The package is `tools.jackson.databind.*`, NOT `com.fasterxml.jackson.databind.*`. Copying any Boot 3 snippet that imports the old package fails to compile. Annotations are the exception — `@JsonInclude` and friends kept the original `com.fasterxml.jackson.annotation` package.
+- **Boot 4 starters are modular.** `spring-boot-starter-web` does not exist; use `spring-boot-starter-webmvc`. Flyway needs `spring-boot-starter-flyway` — plain `flyway-core` on the classpath silently means no `FlywayAutoConfiguration`, so migrations never run and Hibernate then fails validation with "missing table".
+- **Never edit an applied migration.** Flyway stores a checksum and refuses to start if a `V*.sql` file changes. Add a new version instead.
+- **`UserDetailsServiceAutoConfiguration` is excluded** in `TechstoreApplication`. Without that, Spring Security invents a random in-memory user and prints its password on every boot.
+- Postgres runs **natively on Windows** on 5432 in this environment, not via `docker-compose.yml`. Both bind 5432, so `docker compose up` will conflict with the native service.
 
 ## Intended architecture (from SUBJECT.md)
 
@@ -39,11 +53,37 @@ No test runner is configured yet. If adding tests, wire up the runner and comman
 
 ### Backend (`backend/`)
 
-Not yet initialized. Once scaffolded per Phase 0 (Maven-based Spring Boot project), add the actual build/test/run commands here (e.g. `mvn spring-boot:run`, `mvn test`, `mvn -Dtest=ClassName#method test` for a single test).
+Use the Maven wrapper (`./mvnw`), not a global `mvn`.
+
+```
+./mvnw spring-boot:run              # start the API on :8080 (devtools auto-restarts on recompile)
+./mvnw compile                      # compile only
+./mvnw test                         # run tests
+./mvnw -Dtest=ClassName#method test # run a single test
+./mvnw dependency:tree              # inspect the classpath (note: -q suppresses the output entirely)
+```
+
+Requires `backend/.env` (see `.env.example`): `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `SERVER_PORT`, and `JWT_SECRET` (≥32 chars, or the app refuses to start).
 
 ### Docker
 
-`docker-compose.yml` (root) does not exist yet — Phase 0 calls for it to bring up backend, frontend, PostgreSQL, and Redis together.
+`docker-compose.yml` exists (postgres, redis, backend, frontend) but is **untested** — the native Postgres on 5432 conflicts with the container. Its `backend.DB_URL` override must stay in sync with `POSTGRES_DB` in `backend/.env`.
+
+## API surface (built so far)
+
+Public: `GET /api/health`, `GET /api/products`, `GET /api/products/{id}`, and `POST /api/auth/{register,login,refresh,logout}`.
+Authenticated: `GET /api/auth/me`. ADMIN-only: `/api/admin/**` (reserved, no endpoints yet).
+
+Every failure returns the same `ApiError` JSON shape (`timestamp`, `status`, `error`, `message`, `path`, plus `fieldErrors` on validation failures), built centrally in `common/GlobalExceptionHandler`.
+
+## Auth invariants — do not regress these
+
+- Access token: 15 min, returned in the response body, held **in memory only** on the frontend (`store/authStore.ts` has no `persist` middleware — deliberately). Never put it in `localStorage`.
+- Refresh token: 30 days, HttpOnly cookie scoped to `path=/api/auth`. Verified unreadable from `document.cookie`.
+- `secure(false)` on the cookie is dev-only; Phase 10 must flip it to `true` (and `sameSite("None")` if the frontend moves to a different domain).
+- Both `withCredentials: true` (axios) and `setAllowCredentials(true)` (CORS) are required. If either is dropped, login appears to work but sessions die on reload.
+- Tokens carry a `typ` claim and every verification asserts the expected type, so a refresh token cannot be used as a bearer access token.
+- `api/client.ts` refreshes on 401 and retries once, deduping concurrent refreshes via a single in-flight promise. `/auth/login|register|refresh|logout` are exempt so a genuine 401 is not mistaken for an expired token.
 
 ## Key constraints from the spec worth respecting in implementation
 

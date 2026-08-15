@@ -4,8 +4,24 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="src/index.css">
-    <title>frontend</title>
+
+    <!--
+      The stylesheet is NOT linked here. It is imported by src/main.tsx instead
+      (`import "./index.css"`), which is the idiomatic Vite approach: the CSS then goes
+      through the same build pipeline as the JavaScript, so it gets Tailwind-processed,
+      minified, and content-hashed for cache-busting in production. A raw <link> to a
+      source file also risks loading the styles twice once the import exists.
+    -->
+
+    <!--
+      `color-scheme: dark` tells the browser this page is dark, so browser-rendered
+      chrome -- scrollbars, form controls, the address bar on mobile -- matches instead
+      of flashing white.
+    -->
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0a0a0b" />
+
+    <title>TechStore — console-grade gear</title>
   </head>
   <body>
     <div id="root"></div>

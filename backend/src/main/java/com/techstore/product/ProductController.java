@@ -1,23 +1,27 @@
 package com.techstore.product;
 
+import com.techstore.product.dto.ProductResponse;
 import java.util.List;
-import org.springframework.web.bind.annotation.CrossOrigin;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/products")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173")
 public class ProductController {
 
-    private final ProductRepository productRepository;
+    private final ProductService productService;
 
     @GetMapping
-    public List<Product> findAllProducts() {
-        return productRepository.findAll();
+    public List<ProductResponse> findAllProducts() {
+        return productService.findAll();
+    }
+
+    @GetMapping("/{id}")
+    public ProductResponse findProductById(@PathVariable Long id) {
+        return productService.findById(id);
     }
 }

@@ -21,14 +21,18 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false, length = 200)
     private String name;
+
+    @Column(columnDefinition = "text")
     private String description;
 
-    @Column(name = "price_cents")
+    @Column(name = "price_cents", nullable = false)
     private Integer priceCents;
 
+    @Column(nullable = false)
     private Integer stock;
 
-    @Column(name = "image_url")
+    @Column(name = "image_url", length = 500)
     private String imageUrl;
 }

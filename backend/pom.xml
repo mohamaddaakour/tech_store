@@ -28,6 +28,7 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<jjwt.version>0.12.6</jjwt.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -66,6 +67,42 @@
 			<scope>runtime</scope>
 		</dependency>
 		
+		<!--
+			Spring Security: gives us the servlet filter chain, the
+			SecurityContext (who is the current user?), and BCryptPasswordEncoder.
+		-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<!--
+			JJWT creates and verifies the JSON Web Tokens themselves.
+			It is split into three jars on purpose:
+			  - jjwt-api     the interfaces we write code against (compile time)
+			  - jjwt-impl    the actual implementation  (runtime only)
+			  - jjwt-jackson turns the token payload into/out of JSON (runtime only)
+			Spring Boot does not manage jjwt's version, so we pin it ourselves
+			via the <jjwt.version> property above.
+		-->
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-api</artifactId>
+			<version>${jjwt.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-impl</artifactId>
+			<version>${jjwt.version}</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-jackson</artifactId>
+			<version>${jjwt.version}</version>
+			<scope>runtime</scope>
+		</dependency>
+
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
