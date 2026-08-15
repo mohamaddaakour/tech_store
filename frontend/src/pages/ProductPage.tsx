@@ -3,8 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "motion/react";
 import { ArrowLeft, Check, ShieldCheck, Truck } from "lucide-react";
 import { getErrorMessage } from "../api/client";
-import { useProduct, useProducts } from "../hooks/useProducts";
-import { extractSpecs, getBrand, getCategory } from "../lib/catalog";
+import { useProduct, useAllProducts } from "../hooks/useProducts";
+import { extractSpecs, brandOf, categoryOf } from "../lib/catalog";
 import { formatPrice } from "../lib/format";
 import { useRecentlyViewedStore } from "../store/recentlyViewedStore";
 import { ProductRow } from "../components/products/ProductRow";
@@ -38,7 +38,7 @@ export default function ProductPage() {
   const validId = Number.isFinite(productId) ? productId : undefined;
 
   const { data: product, isPending, error } = useProduct(validId);
-  const { data: allProducts } = useProducts();
+  const { data: allProducts } = useAllProducts();
 
   const recordView = useRecentlyViewedStore((state) => state.record);
   const reduceMotion = useReducedMotion();
@@ -76,9 +76,9 @@ export default function ProductPage() {
   const related = useMemo(() => {
     if (!allProducts || !product) return [];
 
-    const category = getCategory(product);
+    const category = categoryOf(product);
     const sameCategory = allProducts.filter(
-      (candidate) => candidate.id !== product.id && getCategory(candidate) === category,
+      (candidate) => candidate.id !== product.id && categoryOf(candidate) === category,
     );
 
     if (sameCategory.length > 0) return sameCategory;
@@ -206,8 +206,8 @@ export default function ProductPage() {
         {/* ================= DETAILS ================= */}
         <div className="flex flex-col gap-5">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="accent">{getBrand(product)}</Badge>
-            <Badge tone="neutral">{getCategory(product)}</Badge>
+            <Badge tone="accent">{brandOf(product)}</Badge>
+            <Badge tone="neutral">{categoryOf(product)}</Badge>
             {product.inStock ? (
               product.stock <= 5 ? (
                 <Badge tone="warn">Only {product.stock} left</Badge>
@@ -298,7 +298,7 @@ export default function ProductPage() {
 
       <ProductRow
         title="You might also like"
-        subtitle={`More in ${getCategory(product)}`}
+        subtitle={`More in ${categoryOf(product)}`}
         products={related}
       />
     </div>

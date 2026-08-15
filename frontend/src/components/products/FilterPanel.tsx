@@ -1,21 +1,22 @@
 import { X } from "lucide-react";
+import type { Facet } from "../../types/product";
 import { formatPrice } from "../../lib/format";
 import { Button } from "../ui/Button";
 import { cn } from "../../lib/cn";
 
 export interface FilterValues {
+  /** Brand **slug**, not name — the API filters by slug and slugs are URL-safe. */
   brand: string;
   category: string;
-  /** Upper price bound, in cents. */
   maxPriceCents: number;
   inStockOnly: boolean;
 }
 
 interface FilterPanelProps {
   values: FilterValues;
-  brands: string[];
-  categories: string[];
-  /** Highest price in the unfiltered catalogue — the slider's ceiling. */
+  brands: Facet[];
+  categories: Facet[];
+  /** Highest price in the catalogue, from `/api/products/meta`. */
   priceCeilingCents: number;
   activeCount: number;
   onChange: (patch: Partial<FilterValues>) => void;
@@ -23,15 +24,14 @@ interface FilterPanelProps {
 }
 
 /**
- * The catalogue filter sidebar — SUBJECT.md Phase 2's brand / price / stock filters.
+ * The catalogue filter sidebar.
  *
- * A "controlled" component: it holds no state of its own, but renders `values` and
- * reports changes upward. The Store page keeps the real state in the URL, which is
- * what makes a filtered view shareable and the browser's Back button work. If this
- * component owned the state too, the two copies would drift.
+ * A controlled component: it holds no state of its own but renders `values` and reports changes
+ * upward. The Store page keeps the real state in the URL, which is what makes a filtered view
+ * shareable. If this component owned the state too, the two copies would drift.
  *
- * `onChange` takes a partial patch rather than a whole `FilterValues`, so a control
- * only has to say what *it* changed.
+ * Facets now arrive from the API with real product counts, so a shopper can see there is no point
+ * filtering to a brand with nothing in it.
  */
 export function FilterPanel({
   values,
@@ -46,8 +46,8 @@ export function FilterPanel({
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-bold text-ink">Filters</h2>
-        {/* The reset control appears only when there is something to reset —
-            a permanently visible "Clear all" on an unfiltered list is dead weight. */}
+        {/* Appears only when there is something to reset — a permanent "Clear all" on an
+            unfiltered list is dead weight. */}
         {activeCount > 0 && (
           <Button variant="ghost" size="sm" onClick={onReset}>
             <X className="size-3.5" />
@@ -57,17 +57,17 @@ export function FilterPanel({
       </div>
 
       <FilterGroup label="Category">
-        <ChipList
-          options={categories}
-          selected={values.category}
+        <FacetChips
+          facets={categories}
+          selectedSlug={values.category}
           onSelect={(category) => onChange({ category })}
         />
       </FilterGroup>
 
       <FilterGroup label="Brand">
-        <ChipList
-          options={brands}
-          selected={values.brand}
+        <FacetChips
+          facets={brands}
+          selectedSlug={values.brand}
           onSelect={(brand) => onChange({ brand })}
         />
       </FilterGroup>
@@ -78,8 +78,7 @@ export function FilterPanel({
             type="range"
             min={0}
             max={priceCeilingCents}
-            // Step in whole dollars; cent-level precision on a price slider is
-            // fiddly and meaningless to a shopper.
+            // Step in whole dollars; cent precision on a price slider is meaningless to a shopper.
             step={100}
             value={values.maxPriceCents}
             onChange={(event) => onChange({ maxPriceCents: Number(event.target.value) })}
@@ -94,9 +93,8 @@ export function FilterPanel({
       </FilterGroup>
 
       <FilterGroup label="Availability">
-        {/* A real checkbox wrapped in a label, so clicking the text toggles it and
-            screen readers announce the checked state. A styled div listening for
-            clicks gets neither for free. */}
+        {/* A real checkbox wrapped in a label, so clicking the text toggles it and screen readers
+            announce the checked state. A styled div listening for clicks gets neither. */}
         <label className="flex cursor-pointer items-center gap-2.5 text-xs text-ink-muted">
           <input
             type="checkbox"
@@ -122,45 +120,66 @@ function FilterGroup({ label, children }: { label: string; children: React.React
 }
 
 /**
- * A row of single-select chips, with an "All" option.
+ * A row of single-select chips with an "All" option.
  *
- * Chips rather than a `<select>` because every option is visible at a glance and
- * selecting is one tap — on a filter with five values a dropdown hides the choices
- * behind an extra interaction for no benefit.
+ * Chips rather than a `<select>` because every option and its count is visible at a glance, and
+ * selecting is one tap. A dropdown would hide five choices behind an extra interaction.
+ *
+ * The chip displays the facet **name** but reports its **slug**, which is what the API filters on.
  */
-function ChipList({
-  options,
-  selected,
+function FacetChips({
+  facets,
+  selectedSlug,
   onSelect,
 }: {
-  options: string[];
-  selected: string;
-  onSelect: (value: string) => void;
+  facets: Facet[];
+  selectedSlug: string;
+  onSelect: (slug: string) => void;
 }) {
-  // "" is the sentinel for "no filter", which keeps the URL clean (no `?brand=All`).
-  const allOptions = ["", ...options];
-
   return (
     <div className="flex flex-wrap gap-1.5">
-      {allOptions.map((option) => {
-        const isSelected = selected === option;
+      {/* "" is the sentinel for "no filter", which keeps the URL clean (no `?brand=All`). */}
+      <FacetChip label="All" isSelected={selectedSlug === ""} onClick={() => onSelect("")} />
 
-        return (
-          <button
-            key={option || "all"}
-            onClick={() => onSelect(option)}
-            aria-pressed={isSelected}
-            className={cn(
-              "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors duration-150",
-              isSelected
-                ? "bg-accent text-accent-ink"
-                : "bg-surface-2 text-ink-muted ring-1 ring-line hover:bg-surface-3 hover:text-ink",
-            )}
-          >
-            {option || "All"}
-          </button>
-        );
-      })}
+      {facets.map((facet) => (
+        <FacetChip
+          key={facet.slug}
+          label={facet.name}
+          count={facet.productCount}
+          isSelected={selectedSlug === facet.slug}
+          onClick={() => onSelect(facet.slug)}
+        />
+      ))}
     </div>
+  );
+}
+
+function FacetChip({
+  label,
+  count,
+  isSelected,
+  onClick,
+}: {
+  label: string;
+  count?: number;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={isSelected}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors duration-150",
+        isSelected
+          ? "bg-accent text-accent-ink"
+          : "bg-surface-2 text-ink-muted ring-1 ring-line hover:bg-surface-3 hover:text-ink",
+      )}
+    >
+      {label}
+      {count !== undefined && (
+        <span className={isSelected ? "opacity-70" : "text-ink-faint"}>{count}</span>
+      )}
+    </button>
   );
 }

@@ -4,8 +4,9 @@ import { Heart, LayoutGrid, Package, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUiStore } from "../../store/uiStore";
 import { useWishlistStore } from "../../store/wishlistStore";
-import { useOrderStore } from "../../store/orderStore";
-import { useProducts } from "../../hooks/useProducts";
+import { useMyOrders } from "../../hooks/useOrders";
+import { useAuthStore } from "../../store/authStore";
+import { useAllProducts } from "../../hooks/useProducts";
 import { CountUp } from "../ui/CountUp";
 
 /**
@@ -30,8 +31,17 @@ interface Tile {
 export function QuickActions() {
   const setPanel = useUiStore((state) => state.setPanel);
   const savedCount = useWishlistStore((state) => state.ids.length);
-  const orderCount = useOrderStore((state) => state.orders.length);
-  const { data: products } = useProducts();
+  /**
+   * Order count for a signed-in user.
+   *
+   * The query is skipped entirely for guests — `useMyOrders` requires a token, and firing it
+   * anonymously would produce a pointless 401 (which the axios interceptor would then try to refresh)
+   * on every dashboard load for a visitor who has no account.
+   */
+  const isSignedIn = useAuthStore((state) => state.user !== null);
+  const { data: myOrders } = useMyOrders(0, { enabled: isSignedIn });
+  const orderCount = myOrders?.totalElements ?? 0;
+  const { data: products } = useAllProducts();
 
   const reduceMotion = useReducedMotion();
 

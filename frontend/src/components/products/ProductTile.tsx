@@ -4,7 +4,7 @@ import { Heart, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import type { Product } from "../../types/product";
 import { formatPrice } from "../../lib/format";
-import { getBrand } from "../../lib/catalog";
+import { brandOf } from "../../lib/catalog";
 import { useCartStore } from "../../store/cartStore";
 import { useWishlistStore } from "../../store/wishlistStore";
 import { Badge } from "../ui/Badge";
@@ -165,7 +165,7 @@ export function ProductTile({ product, index = 0, fixedWidth = false }: ProductT
             higher than its neighbours'. */}
         <div className="flex flex-1 flex-col gap-1 p-3.5">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-accent">
-            {getBrand(product)}
+            {brandOf(product)}
           </p>
 
           <h3 className="line-clamp-1 text-sm font-semibold text-ink">{product.name}</h3>

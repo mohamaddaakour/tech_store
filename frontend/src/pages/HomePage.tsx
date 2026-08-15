@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { getErrorMessage } from "../api/client";
-import { useProducts } from "../hooks/useProducts";
+import { useAllProducts } from "../hooks/useProducts";
 import { useAuthStore } from "../store/authStore";
 import { useRecentlyViewedStore } from "../store/recentlyViewedStore";
 import { FeaturedHero } from "../components/products/FeaturedHero";
@@ -25,7 +25,7 @@ import { Skeleton } from "../components/ui/Skeleton";
  * Each `useMemo` documents what the row actually means.
  */
 export default function HomePage() {
-  const { data: products, isPending, error, refetch, isFetching } = useProducts();
+  const { data: products, isPending, error, refetch, isFetching } = useAllProducts();
   const user = useAuthStore((state) => state.user);
   const recentIds = useRecentlyViewedStore((state) => state.ids);
 
@@ -70,7 +70,7 @@ export default function HomePage() {
   if (isPending) {
     return (
       <div className="flex flex-col gap-8" aria-busy="true" aria-label="Loading dashboard">
-        <Skeleton className="h-[22rem] w-full rounded-panel" />
+        <Skeleton className="h-88 w-full rounded-panel" />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
             <Skeleton key={index} className="h-28 rounded-tile" />
@@ -148,7 +148,9 @@ export default function HomePage() {
         viewAllTo="/store"
       />
 
-      <BrandStrip products={products} />
+      {/* No props: brands now come from GET /api/brands with real product counts, rather than
+          being reduced out of whatever products this page happened to fetch. */}
+      <BrandStrip />
     </div>
   );
 }

@@ -10,10 +10,12 @@ Phases 1–3 of `plan/roadmap.md` are implemented and verified end to end (catal
 
 Current state:
 
-- `backend/` — Spring Boot 4.1.0 / Java 21, layered by feature: `auth/`, `product/`, `common/`, `config/`, `health/`. Flyway owns the schema (`V1` products, `V2` users); Hibernate runs `ddl-auto: validate` and never modifies it.
-- `frontend/` — React 19 + TS + Vite 8 + Tailwind v4. Design tokens in `src/index.css` `@theme`; primitives in `src/components/ui/`; feature components in `components/{products,cart,auth,layout}/`; `api/`, `hooks/`, `lib/`, `store/`, `types/`.
+- `backend/` — Spring Boot 4.1.0 / Java 21, layered by feature: `auth/`, `catalog/`, `product/`, `order/`, `admin/`, `common/`, `config/`, `health/`. Flyway owns the schema (`V1` products, `V2` users, `V3` categories+brands+product metadata, `V4` orders); Hibernate runs `ddl-auto: validate` and never modifies it.
+- `frontend/` — React 19 + TS + Vite 8 + Tailwind v4 + React Router + TanStack Query + Zustand + Framer Motion + Recharts. Design tokens in `src/index.css` `@theme` (dark default, `html[data-theme="light"]` override); primitives in `components/ui/`; features in `components/{products,cart,auth,admin,layout,home,orders,search,assistant}/`; pages in `pages/` and `pages/admin/`.
 
-Later phases (4–10: checkout, Stripe, admin catalog, AI assistant, WebSockets, caching/deploy) are **not** built. Do not assume entities or endpoints beyond what is in the working tree.
+**Also built beyond `plan/` phase 3:** SUBJECT.md's Phase 6 admin dashboard (analytics, product/category/brand CRUD, order management, user roles), and the Phase 2–3 backend it depends on (Category, Brand, Order, OrderItem, OrderEvent + stock-safe checkout).
+
+Still **not** built: Stripe payments, reviews/wishlist persistence, a real AI assistant, WebSockets, Redis caching, product specifications as entities, and any frontend or backend test beyond the context-load smoke test.
 
 ## Non-obvious constraints discovered while building (read before touching the backend)
 
@@ -71,10 +73,41 @@ Requires `backend/.env` (see `.env.example`): `DB_URL`, `DB_USERNAME`, `DB_PASSW
 
 ## API surface (built so far)
 
-Public: `GET /api/health`, `GET /api/products`, `GET /api/products/{id}`, and `POST /api/auth/{register,login,refresh,logout}`.
-Authenticated: `GET /api/auth/me`. ADMIN-only: `/api/admin/**` (reserved, no endpoints yet).
+**Public**
+- `GET /api/health`
+- `GET /api/products` — search/filter/sort/paginate: `?search=&category=&brand=&maxPrice=&inStock=&sort=&page=&size=`. Returns `PageResponse<ProductResponse>`, **not** a bare array.
+- `GET /api/products/{id}`, `GET /api/products/meta` (price ceiling)
+- `GET /api/categories`, `GET /api/brands` — facets with product counts
+- `POST /api/auth/{register,login,refresh,logout}`
+
+**Authenticated**
+- `GET /api/auth/me`
+- `POST /api/orders` (checkout), `GET /api/orders`, `GET /api/orders/{reference}`
+
+**ADMIN only** (`/api/admin/**`, one `hasRole("ADMIN")` rule covers all of it)
+- `GET /dashboard` — one aggregate: KPIs, 30-day sales trend, top sellers, status breakdown, low stock, recent orders
+- `GET|POST /products`, `PUT|DELETE /products/{id}`
+- `POST /categories`, `PUT|DELETE /categories/{id}` — same for `/brands`
+- `GET /orders`, `GET /orders/{reference}`, `PATCH /orders/{reference}/status`
+- `GET /users`, `PATCH /users/{id}/role`
 
 Every failure returns the same `ApiError` JSON shape (`timestamp`, `status`, `error`, `message`, `path`, plus `fieldErrors` on validation failures), built centrally in `common/GlobalExceptionHandler`.
+
+## Order and stock invariants — do not regress these
+
+- **Checkout is the transaction that matters.** `OrderService.checkout` prices every line from the database (the request carries only ids and quantities), locks rows with `findByIdForUpdate` (`SELECT … FOR UPDATE`), and decrements stock in one transaction. Locks are taken in ascending product-id order to prevent deadlocks.
+- Pessimistic locking at checkout, **optimistic** (`@Version`) for admin edits. Different problems: checkout must *prevent* overselling, edits only need to *detect* a conflict (→ 409).
+- `OrderStatus` owns the transition table. PENDING→PAID→SHIPPED→DELIVERED, cancel from PENDING/PAID only; DELIVERED and CANCELLED are terminal. The API returns `allowedNextStatuses` so the UI renders only valid moves.
+- Order lines **snapshot** name/image/price. Never read them live from the product — a receipt must show what was actually paid.
+- Cancelling does **not** restock. That is a deliberate business decision belonging with Phase 4 refunds.
+- `order_reference_seq` (a Postgres sequence) generates references. Never `count() + 1` — that races.
+- Revenue means `PAID|SHIPPED|DELIVERED` (`OrderStatus.REVENUE_STATUSES`). The KPI and the sales chart both use it; if you change one, change both or the dashboard contradicts itself.
+
+## Gotchas that cost time here
+
+- **Hibernate cannot fetch two `List` collections in one query** — `MultipleBagFetchException`. `OrderRepository.findByReference` fetches `items` but leaves `events` lazy for exactly this reason.
+- The first ADMIN must be promoted in SQL (`UPDATE users SET role='ADMIN' WHERE email=…`), since `PATCH /admin/users/{id}/role` itself requires an admin. The server also refuses self-demotion, so you cannot lock yourself out.
+- **Vite is pinned to port 5173 with `strictPort: true`.** The backend's CORS allowlist permits only `http://localhost:5173`, and a CORS block is indistinguishable from "backend down" to axios — it surfaces as "Cannot reach the server." Failing loudly on a taken port beats debugging a phantom outage. `127.0.0.1:5173` is a *different* origin and is also blocked.
 
 ## Auth invariants — do not regress these
 

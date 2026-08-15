@@ -1,43 +1,62 @@
 import { useQuery } from "@tanstack/react-query";
-import { getAllProducts, getProductById } from "../api/products";
-import type { Product } from "../types/product";
+import {
+  getAllProducts,
+  getBrands,
+  getCategories,
+  getProductById,
+  getProductMeta,
+  searchProducts,
+} from "../api/products";
+import type { Facet, Page, Product, ProductQuery } from "../types/product";
 
 /**
  * Query keys in one place.
  *
- * TanStack Query identifies cached data by this key, so a typo (`["product"]` vs
- * `["products"]`) silently means "different data" and cache invalidation appears
- * to do nothing. Defining them here makes that impossible.
+ * TanStack Query identifies cached data by these, so a typo means "different data" and cache
+ * invalidation silently does nothing. Note `search` includes the whole query object: each distinct
+ * filter combination is cached separately, which is what makes paging back and forth instant.
  */
 export const productKeys = {
   all: ["products"] as const,
+  list: ["products", "list"] as const,
+  search: (query: ProductQuery) => ["products", "search", query] as const,
   detail: (id: number) => ["products", id] as const,
+  meta: ["products", "meta"] as const,
+  categories: ["categories"] as const,
+  brands: ["brands"] as const,
 };
 
 /**
- * The whole catalog.
+ * Server-side search for the Store page.
  *
- * `staleTime` of a minute means remounting a page — which happens on every route
- * change — reuses the cache instead of refetching. Without it, navigating between
- * the dashboard and the store would flash a loading state each time even though
- * the data is already in memory.
+ * `placeholderData` keeps the previous page's results on screen while the next page loads, instead
+ * of flashing an empty grid. Combined with the query key including the filters, paging feels instant
+ * once a page has been seen.
  */
-export function useProducts() {
+export function useProductSearch(query: ProductQuery) {
+  return useQuery<Page<Product>>({
+    queryKey: productKeys.search(query),
+    queryFn: () => searchProducts(query),
+    staleTime: 30_000,
+    placeholderData: (previous) => previous,
+  });
+}
+
+/**
+ * The whole catalogue, for views that need every product — dashboard rows, search overlay, saved
+ * collection, related products.
+ *
+ * Capped at 60 by the API (see `getAllProducts`). Kept as a distinct hook from `useProductSearch` so
+ * it has its own cache entry and does not thrash when Store filters change.
+ */
+export function useAllProducts() {
   return useQuery<Product[]>({
-    queryKey: productKeys.all,
+    queryKey: productKeys.list,
     queryFn: getAllProducts,
     staleTime: 60_000,
   });
 }
 
-/**
- * One product, for the detail page.
- *
- * `initialData` is the nice part: if the catalog list is already cached, we show
- * the product instantly from it and let the individual fetch confirm in the
- * background. Navigating from a tile to its product page therefore renders with
- * zero loading state.
- */
 export function useProduct(id: number | undefined) {
   return useQuery<Product>({
     queryKey: productKeys.detail(id ?? -1),
@@ -45,5 +64,35 @@ export function useProduct(id: number | undefined) {
     // Never fire the request for an unparseable URL param.
     enabled: typeof id === "number" && Number.isFinite(id),
     staleTime: 60_000,
+  });
+}
+
+/**
+ * Filter facets and the price ceiling.
+ *
+ * Long `staleTime` on purpose: categories and brands change when an admin edits them, which is rare.
+ * Refetching them alongside every product query would be pure waste.
+ */
+export function useCategories() {
+  return useQuery<Facet[]>({
+    queryKey: productKeys.categories,
+    queryFn: getCategories,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useBrands() {
+  return useQuery<Facet[]>({
+    queryKey: productKeys.brands,
+    queryFn: getBrands,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useProductMeta() {
+  return useQuery({
+    queryKey: productKeys.meta,
+    queryFn: getProductMeta,
+    staleTime: 5 * 60_000,
   });
 }

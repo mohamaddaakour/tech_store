@@ -1,67 +1,26 @@
 import type { Product } from "../types/product";
 
 /**
- * Derives brand, category and specifications from a product's text.
+ * Product display helpers.
  *
- * ## Why this exists
+ * **This file used to guess brand and category from a product's text with keyword regexes.** That
+ * stopgap is gone: the backend now has real `Category` and `Brand` entities, and every product
+ * carries `brandName` / `categorySlug` straight from the database. Guessing could never know which
+ * manufacturer an unfamiliar model name belonged to; this cannot be wrong.
  *
- * SUBJECT.md Phase 2 wants filtering by brand and by specs (CPU, GPU, RAM,
- * screen size, refresh rate, resolution). The backend currently has a single
- * flat `products` table — no `Brand`, `Category` or `ProductSpecification`
- * entities — and this task must not change it.
- *
- * So we infer those facets from `name` and `description`. It is a **stopgap, and
- * it is the weakest code in the frontend**: keyword matching cannot know that a
- * future "Aurora R16" is a Dell. It exists so the filter and spec-panel UI is
- * real and exercised rather than faked with hardcoded data.
- *
- * When the backend grows those entities, delete this file and read the fields
- * off the API. Everything here is confined to this module precisely so that is a
- * contained change.
+ * What remains is a fallback for the nullable columns, plus specification parsing — the one thing
+ * still derived, because there is no `ProductSpecification` entity yet (SUBJECT.md Phase 2 lists it;
+ * it needs its own table and admin UI).
  */
 
-/** Ordered most-specific first: the first pattern to match wins. */
-const BRAND_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/\b(rog|strix|zephyrus|asus)\b/i, "ASUS"],
-  [/\b(ultrasharp|alienware|xps|dell)\b/i, "Dell"],
-  [/\b(mx master|mx keys|logitech)\b/i, "Logitech"],
-  [/\b(thinkpad|ideapad|legion|lenovo)\b/i, "Lenovo"],
-  [/\b(macbook|imac|apple|magic)\b/i, "Apple"],
-  [/\b(galaxy|odyssey|samsung)\b/i, "Samsung"],
-  [/\b(predator|nitro|acer)\b/i, "Acer"],
-  [/\b(omen|spectre|pavilion|hp)\b/i, "HP"],
-  [/\b(razer|blade)\b/i, "Razer"],
-  [/\bmsi\b/i, "MSI"],
-  [/\bkeychron\b/i, "Keychron"],
-  [/\b(geforce|nvidia)\b/i, "NVIDIA"],
-];
-
-const CATEGORY_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/\b(laptop|notebook|ultrabook|macbook|thinkpad)\b/i, "Laptops"],
-  [/\b(monitor|display|ultrasharp|screen)\b/i, "Monitors"],
-  [/\b(mouse|mice)\b/i, "Mice"],
-  [/\b(keyboard|keys)\b/i, "Keyboards"],
-  [/\b(headset|headphone|earbud|speaker|audio)\b/i, "Audio"],
-  [/\b(gpu|graphics card|cpu|ryzen|motherboard|ssd|nvme|psu)\b/i, "Components"],
-  [/\b(phone|smartphone|iphone|pixel)\b/i, "Phones"],
-  [/\b(desktop|pc|tower|workstation)\b/i, "Desktops"],
-];
-
-/** Everything we search, lowercased once per call. */
-function searchableText(product: Product): string {
-  return `${product.name} ${product.description ?? ""}`;
+/** The brand name, or a placeholder when the product has none. */
+export function brandOf(product: Product): string {
+  return product.brandName ?? "Unbranded";
 }
 
-/** Best-guess brand, or "Other" when nothing matches. */
-export function getBrand(product: Product): string {
-  const text = searchableText(product);
-  return BRAND_PATTERNS.find(([pattern]) => pattern.test(text))?.[1] ?? "Other";
-}
-
-/** Best-guess category, or "Accessories" when nothing matches. */
-export function getCategory(product: Product): string {
-  const text = searchableText(product);
-  return CATEGORY_PATTERNS.find(([pattern]) => pattern.test(text))?.[1] ?? "Accessories";
+/** The category name, or a placeholder when the product is uncategorised. */
+export function categoryOf(product: Product): string {
+  return product.categoryName ?? "Uncategorised";
 }
 
 /** One row in the product page's animated specification panel. */
@@ -73,9 +32,12 @@ export interface Spec {
 /**
  * Extractors for the spec panel, in display order.
  *
- * Each takes the first capture group of its regex and formats it. Returning
- * `null` means "not mentioned", and that spec is simply omitted rather than
- * shown as "Unknown" — a panel of blanks looks broken.
+ * Each pulls a capture group from the product's description and formats it. Returning nothing means
+ * "not mentioned", and that spec is omitted rather than shown as "Unknown" — a panel full of blanks
+ * looks broken.
+ *
+ * This is genuinely derived data and will stay approximate until specs are first-class columns. It
+ * is confined to this file so that migration is contained.
  */
 const SPEC_EXTRACTORS: ReadonlyArray<{
   label: string;
@@ -94,6 +56,7 @@ const SPEC_EXTRACTORS: ReadonlyArray<{
   },
   {
     label: "Memory",
+    // The negative lookahead stops "512GB SSD" being reported as 512GB of RAM.
     pattern: /\b(\d{1,3})\s?GB\b(?!\s?(?:SSD|NVMe))/i,
     format: (match) => `${match[1]}GB RAM`,
   },
@@ -115,18 +78,18 @@ const SPEC_EXTRACTORS: ReadonlyArray<{
   {
     label: "Connectivity",
     pattern: /\b(wireless|bluetooth|wi-?fi\s?\d?|usb-c|thunderbolt)\b/i,
-    format: (match) => match[1].replace(/^./, (c) => c.toUpperCase()),
+    format: (match) => match[1].replace(/^./, (character) => character.toUpperCase()),
   },
 ];
 
 /**
- * Pulls whatever specifications the product text actually mentions.
+ * Builds the specification list.
  *
- * Always prepends brand and category so the panel is never empty, even for a
- * product whose description is a single sentence.
+ * Brand and category come first and are always present — they are real data now, so the panel is
+ * never empty even for a product with a one-line description.
  */
 export function extractSpecs(product: Product): Spec[] {
-  const text = searchableText(product);
+  const text = `${product.name} ${product.description ?? ""}`;
 
   const parsed = SPEC_EXTRACTORS.reduce<Spec[]>((specs, extractor) => {
     const match = text.match(extractor.pattern);
@@ -135,18 +98,8 @@ export function extractSpecs(product: Product): Spec[] {
   }, []);
 
   return [
-    { label: "Brand", value: getBrand(product) },
-    { label: "Category", value: getCategory(product) },
+    { label: "Brand", value: brandOf(product) },
+    { label: "Category", value: categoryOf(product) },
     ...parsed,
   ];
-}
-
-/** Unique brands present in a product list, alphabetised — for the filter panel. */
-export function collectBrands(products: Product[]): string[] {
-  return [...new Set(products.map(getBrand))].sort();
-}
-
-/** Unique categories present in a product list, alphabetised. */
-export function collectCategories(products: Product[]): string[] {
-  return [...new Set(products.map(getCategory))].sort();
 }

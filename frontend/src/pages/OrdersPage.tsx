@@ -1,13 +1,15 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { ArrowRight } from "lucide-react";
-import { useOrderStore } from "../store/orderStore";
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { getErrorMessage } from "../api/client";
+import { useMyOrders } from "../hooks/useOrders";
 import { formatPrice, pluralize } from "../lib/format";
 import { OrderStatusBadge } from "../components/orders/OrderStatusBadge";
-import { ButtonLink } from "../components/ui/Button";
+import { Button, ButtonLink } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
+import { Skeleton } from "../components/ui/Skeleton";
 
-/** Short date for the list rows. */
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
     day: "numeric",
@@ -17,16 +19,43 @@ function formatDate(iso: string): string {
 }
 
 /**
- * Order history (SUBJECT.md Phase 3: "Orders").
+ * Order history — now served from the database rather than `localStorage`.
  *
- * A protected route — see `ProtectedRoute` in the router. Orders belong to an account,
- * so an anonymous visitor is redirected to sign in first.
- *
- * Data comes from `orderStore` (localStorage) because the backend has no order
- * endpoints yet. When they land this becomes a `useQuery` and nothing below changes.
+ * A protected route: orders belong to an account, so an anonymous visitor is redirected to sign in.
+ * The backend independently scopes the query to the authenticated user, so this cannot show anyone
+ * else's orders even if the guard were bypassed.
  */
 export default function OrdersPage() {
-  const orders = useOrderStore((state) => state.orders);
+  const [page, setPage] = useState(0);
+  const { data, isPending, error, refetch, isFetching } = useMyOrders(page);
+
+  if (isPending) {
+    return (
+      <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading orders">
+        <Skeleton className="h-8 w-32" />
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Skeleton key={index} className="h-20 w-full rounded-card" />
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <EmptyState
+        icon="⚠️"
+        title="Could not load your orders"
+        message={getErrorMessage(error)}
+        action={
+          <Button variant="secondary" size="sm" loading={isFetching} onClick={() => refetch()}>
+            Try again
+          </Button>
+        }
+      />
+    );
+  }
+
+  const orders = data?.content ?? [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -35,7 +64,7 @@ export default function OrdersPage() {
         <p className="mt-1 text-sm text-ink-muted">
           {orders.length === 0
             ? "No orders yet"
-            : `${pluralize(orders.length, "order")} · stored in this browser`}
+            : `${pluralize(data?.totalElements ?? 0, "order")}`}
         </p>
       </div>
 
@@ -51,62 +80,69 @@ export default function OrdersPage() {
           }
         />
       ) : (
-        <ul className="flex flex-col gap-3">
-          {orders.map((order, index) => (
-            <motion.li
-              key={order.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: index * 0.05 }}
-            >
-              <Link
-                to={`/orders/${order.id}`}
-                className="group flex items-center gap-4 rounded-card bg-surface p-4 ring-1 ring-line transition-shadow duration-300 hover:glow-accent"
+        <>
+          <ul className="flex flex-col gap-3">
+            {orders.map((order, index) => (
+              <motion.li
+                key={order.reference}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: index * 0.05 }}
               >
-                {/* Overlapping item thumbnails, capped at three plus a counter — the
-                    same device a mail client uses for attachments. It communicates
-                    "how much is in here" in a fixed width. */}
-                <div className="flex shrink-0 -space-x-3">
-                  {order.items.slice(0, 3).map((item) => (
-                    <img
-                      key={item.productId}
-                      src={item.imageUrl}
-                      alt=""
-                      className="size-11 rounded-control object-cover ring-2 ring-surface"
-                    />
-                  ))}
-                  {order.items.length > 3 && (
-                    <span className="grid size-11 place-items-center rounded-control bg-surface-2 text-[11px] font-bold text-ink-muted ring-2 ring-surface">
-                      +{order.items.length - 3}
-                    </span>
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs font-semibold text-ink">{order.id}</span>
-                    <OrderStatusBadge status={order.status} />
+                <Link
+                  to={`/orders/${order.reference}`}
+                  className="group flex items-center gap-4 rounded-card bg-surface p-4 ring-1 ring-line transition-shadow duration-300 hover:glow-accent"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs font-semibold text-ink">
+                        {order.reference}
+                      </span>
+                      <OrderStatusBadge status={order.status} />
+                    </div>
+                    <p className="mt-1 text-[11px] text-ink-faint">
+                      {formatDate(order.createdAt)} · {pluralize(order.itemCount, "item")}
+                    </p>
                   </div>
-                  <p className="mt-1 text-[11px] text-ink-faint">
-                    {formatDate(order.createdAt)} ·{" "}
-                    {pluralize(
-                      order.items.reduce((total, item) => total + item.quantity, 0),
-                      "item",
-                    )}
-                  </p>
-                </div>
 
-                <div className="flex shrink-0 items-center gap-3">
-                  <span className="text-sm font-bold tabular-nums text-ink">
-                    {formatPrice(order.totalCents)}
-                  </span>
-                  {/* Nudges right on hover — a small affordance that says "this opens". */}
-                  <ArrowRight className="size-4 text-ink-faint transition-transform duration-200 group-hover:translate-x-1 group-hover:text-accent" />
-                </div>
-              </Link>
-            </motion.li>
-          ))}
-        </ul>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="text-sm font-bold tabular-nums text-ink">
+                      {formatPrice(order.totalCents)}
+                    </span>
+                    {/* Nudges right on hover — a small cue that this opens. */}
+                    <ArrowRight className="size-4 text-ink-faint transition-transform duration-200 group-hover:translate-x-1 group-hover:text-accent" />
+                  </div>
+                </Link>
+              </motion.li>
+            ))}
+          </ul>
+
+          {(data?.totalPages ?? 1) > 1 && (
+            <nav aria-label="Pagination" className="flex items-center justify-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={data?.first}
+                onClick={() => setPage((current) => Math.max(0, current - 1))}
+              >
+                <ChevronLeft className="size-4" />
+                Previous
+              </Button>
+              <span className="text-xs tabular-nums text-ink-muted">
+                {page + 1} / {data?.totalPages}
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={data?.last}
+                onClick={() => setPage((current) => current + 1)}
+              >
+                Next
+                <ChevronRight className="size-4" />
+              </Button>
+            </nav>
+          )}
+        </>
       )}
     </div>
   );

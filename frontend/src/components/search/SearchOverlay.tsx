@@ -3,10 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { CornerDownLeft, Search } from "lucide-react";
 import { useUiStore } from "../../store/uiStore";
-import { useProducts } from "../../hooks/useProducts";
+import { useAllProducts } from "../../hooks/useProducts";
 import { useEscapeKey } from "../../hooks/useEscapeKey";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
-import { getBrand, getCategory } from "../../lib/catalog";
+import { brandOf, categoryOf } from "../../lib/catalog";
 import { formatPrice } from "../../lib/format";
 import { cn } from "../../lib/cn";
 
@@ -47,7 +47,7 @@ export function SearchOverlay() {
  * Phase 2's server-side search would replace the `results` memo with a debounced query.
  */
 function SearchPanel({ onClose }: { onClose: () => void }) {
-  const { data: products } = useProducts();
+  const { data: products } = useAllProducts();
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
 
@@ -75,7 +75,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
 
     return products
       .filter((product) =>
-        [product.name, product.description, getBrand(product), getCategory(product)]
+        [product.name, product.description, brandOf(product), categoryOf(product)]
           .join(" ")
           .toLowerCase()
           .includes(term),
@@ -185,7 +185,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
                       {product.name}
                     </span>
                     <span className="block truncate text-[11px] text-ink-faint">
-                      {getBrand(product)} · {getCategory(product)}
+                      {brandOf(product)} · {categoryOf(product)}
                     </span>
                   </span>
                   <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">

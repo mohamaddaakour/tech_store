@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useCartStore } from "../../store/cartStore";
 import { useUiStore } from "../../store/uiStore";
-import { calculateShipping, FREE_SHIPPING_THRESHOLD_CENTS } from "../../store/orderStore";
+import { calculateShipping, FREE_SHIPPING_THRESHOLD_CENTS } from "../../lib/shipping";
 import { formatPrice, pluralize } from "../../lib/format";
 import { Button } from "../ui/Button";
 import { Drawer } from "../ui/Drawer";

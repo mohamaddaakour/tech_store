@@ -3,7 +3,7 @@ import { ArrowRight, ShoppingCart } from "lucide-react";
 import toast from "react-hot-toast";
 import type { Product } from "../../types/product";
 import { formatPrice } from "../../lib/format";
-import { extractSpecs, getBrand } from "../../lib/catalog";
+import { extractSpecs, brandOf } from "../../lib/catalog";
 import { useCartStore } from "../../store/cartStore";
 import { Badge } from "../ui/Badge";
 import { Button, ButtonLink } from "../ui/Button";
@@ -96,7 +96,7 @@ export function FeaturedHero({ product }: FeaturedHeroProps) {
         >
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="accent">Featured</Badge>
-            <Badge tone="neutral">{getBrand(product)}</Badge>
+            <Badge tone="neutral">{brandOf(product)}</Badge>
             {product.stock <= 5 && product.inStock && (
               <Badge tone="warn">Only {product.stock} left</Badge>
             )}

@@ -1,9 +1,10 @@
 import { NavLink } from "react-router-dom";
 import { motion } from "motion/react";
-import { Sparkles } from "lucide-react";
+import { ShieldCheck, Sparkles } from "lucide-react";
 import { NAV_ITEMS } from "./navItems";
 import { useUiStore } from "../../store/uiStore";
 import { useWishlistStore } from "../../store/wishlistStore";
+import { useAuthStore, selectIsAdmin } from "../../store/authStore";
 import { cn } from "../../lib/cn";
 
 /**
@@ -20,6 +21,7 @@ import { cn } from "../../lib/cn";
 export function NavRail() {
   const setPanel = useUiStore((state) => state.setPanel);
   const savedCount = useWishlistStore((state) => state.ids.length);
+  const isAdmin = useAuthStore(selectIsAdmin);
 
   return (
     <nav
@@ -99,9 +101,32 @@ export function NavRail() {
         ))}
       </ul>
 
-      {/* ---- Assistant, pinned to the bottom ----
-          `mt-auto` pushes it down: it is a tool rather than a destination, so it
-          is deliberately separated from the list above. */}
+      {/* ---- Admin, shown only to staff ----
+          `mt-auto` pushes this and the assistant to the bottom, separating tools from the
+          destinations above.
+
+          Hiding the link is a courtesy, not a permission check — the backend rejects
+          /api/admin/** for a customer regardless, and a customer who types /admin gets a clear
+          "admin access required" screen from AdminRoute. */}
+      {isAdmin && (
+        <NavLink
+          to="/admin"
+          className={({ isActive }) =>
+            cn(
+              "mt-auto flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors duration-150",
+              isActive ? "bg-accent/10 text-accent" : "text-ink-muted hover:bg-surface-2 hover:text-accent",
+            )
+          }
+        >
+          <span className="grid size-9 shrink-0 place-items-center">
+            <ShieldCheck className="size-5" />
+          </span>
+          <span className="whitespace-nowrap text-sm font-medium opacity-0 transition-opacity duration-200 group-hover/rail:opacity-100">
+            Admin
+          </span>
+        </NavLink>
+      )}
+
       <button
         onClick={() => setPanel("assistant")}
         className="mt-auto flex items-center gap-3 rounded-control px-2 py-2.5 text-ink-muted transition-colors hover:bg-surface-2 hover:text-accent"

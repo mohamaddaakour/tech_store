@@ -6,7 +6,6 @@ import { useAuthStore } from "../store/authStore";
 import { useCartStore } from "../store/cartStore";
 import { useWishlistStore } from "../store/wishlistStore";
 import { useRecentlyViewedStore } from "../store/recentlyViewedStore";
-import { useOrderStore } from "../store/orderStore";
 import { Badge } from "../components/ui/Badge";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { cn } from "../lib/cn";
@@ -33,14 +32,18 @@ export default function SettingsPage() {
   const clearWishlist = useWishlistStore((state) => state.clear);
   const recentCount = useRecentlyViewedStore((state) => state.ids.length);
   const clearRecent = useRecentlyViewedStore((state) => state.clear);
-  const orderCount = useOrderStore((state) => state.orders.length);
-  const clearOrders = useOrderStore((state) => state.clear);
 
+  /**
+   * Orders are no longer listed here.
+   *
+   * They now live in the database, so they are not "local data" this page can clear — and offering a
+   * button that appeared to delete order history would be actively misleading. Cart, collection and
+   * recently-viewed remain genuinely browser-local.
+   */
   function clearEverything() {
     clearCart();
     clearWishlist();
     clearRecent();
-    clearOrders();
     toast.success("Local data cleared");
   }
 
@@ -135,14 +138,13 @@ export default function SettingsPage() {
       {/* ---- Local data ---- */}
       <SettingsSection
         title="Stored data"
-        hint="Cart, collection, recently viewed and orders live in this browser's localStorage."
+        hint="Cart, collection and recently viewed live in this browser's localStorage. Orders are stored on the server against your account."
       >
-        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <dl className="grid grid-cols-3 gap-3">
           {[
             { label: "Cart", value: cartLines },
             { label: "Collection", value: savedCount },
             { label: "Recent", value: recentCount },
-            { label: "Orders", value: orderCount },
           ].map((entry) => (
             <div key={entry.label} className="rounded-control bg-surface-2 p-3">
               <dd className="text-xl font-black tabular-nums text-ink">{entry.value}</dd>

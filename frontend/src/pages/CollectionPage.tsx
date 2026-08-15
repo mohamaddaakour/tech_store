@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import toast from "react-hot-toast";
-import { useProducts } from "../hooks/useProducts";
+import { useAllProducts } from "../hooks/useProducts";
 import { useWishlistStore } from "../store/wishlistStore";
 import { useCartStore } from "../store/cartStore";
 import { formatPrice, pluralize } from "../lib/format";
@@ -21,7 +21,7 @@ import { EmptyState } from "../components/ui/EmptyState";
  * behaviour — a deleted product should not render as a broken tile.
  */
 export default function CollectionPage() {
-  const { data: products, isPending } = useProducts();
+  const { data: products, isPending } = useAllProducts();
   const savedIds = useWishlistStore((state) => state.ids);
   const clearWishlist = useWishlistStore((state) => state.clear);
   const addToCart = useCartStore((state) => state.add);

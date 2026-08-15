@@ -2,20 +2,15 @@ import { Suspense, lazy } from "react";
 import { Outlet, Route, Routes } from "react-router-dom";
 import { ConsoleLayout } from "./components/layout/ConsoleLayout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+import { AdminRoute } from "./components/admin/AdminRoute";
 import { Spinner } from "./components/ui/Spinner";
 
 /**
  * Pages are loaded lazily, one bundle per route.
  *
- * `lazy(() => import(...))` tells the bundler to split each page into its own chunk,
- * fetched the first time that route is visited. Without it every page — checkout,
- * settings, order history — ships in the initial download, so a visitor who only looks
- * at the dashboard still pays for all of it. This is the "lazy loading" item in
- * SUBJECT.md Phase 9, and it is what keeps the entry bundle small as pages are added.
- *
- * The trade-off is a brief fetch the first time you open a page, which is why the
- * `Suspense` fallback below exists. The shell (nav rail, top bar) is deliberately NOT
- * lazy: it is needed immediately on every route.
+ * `lazy(() => import(...))` splits each page into its own chunk, fetched the first time that route is
+ * visited. That matters most for the admin panel: Recharts is a large dependency, and without
+ * splitting every shopper would download the charting library to look at a product page.
  */
 const HomePage = lazy(() => import("./pages/HomePage"));
 const StorePage = lazy(() => import("./pages/StorePage"));
@@ -29,6 +24,17 @@ const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
+// Admin panel. Lazily loaded as its own chunks, so the charting library never reaches a customer.
+const AdminLayout = lazy(() =>
+  import("./components/admin/AdminLayout").then((module) => ({ default: module.AdminLayout })),
+);
+const AdminDashboardPage = lazy(() => import("./pages/admin/AdminDashboardPage"));
+const AdminProductsPage = lazy(() => import("./pages/admin/AdminProductsPage"));
+const AdminOrdersPage = lazy(() => import("./pages/admin/AdminOrdersPage"));
+const AdminOrderDetailPage = lazy(() => import("./pages/admin/AdminOrderDetailPage"));
+const AdminCatalogPage = lazy(() => import("./pages/admin/AdminCatalogPage"));
+const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage"));
+
 /** Shown while a route's chunk is downloading. Centred so it does not shift the layout. */
 function RouteFallback() {
   return (
@@ -41,10 +47,9 @@ function RouteFallback() {
 /**
  * A pathless layout route that wraps its children in a Suspense boundary.
  *
- * Needed because a lazily-loaded page suspends while its chunk downloads, and a
- * suspending component must have a boundary *above* it. Placing that boundary here —
- * inside `ConsoleLayout` — means the nav rail and top bar stay on screen during the
- * fetch. Wrapping the layout itself would blank the entire window instead.
+ * A lazily-loaded page suspends while its chunk downloads, and a suspending component needs a
+ * boundary above it. Placing it here — inside `ConsoleLayout` — keeps the nav rail and top bar on
+ * screen during the fetch; wrapping the layout itself would blank the whole window.
  */
 function SuspenseOutlet() {
   return (
@@ -57,36 +62,28 @@ function SuspenseOutlet() {
 /**
  * The route table.
  *
- * ## Structure
+ * ## Three levels of access
  *
- * Everything nests inside `ConsoleLayout`, so the nav rail, top bar, ambient background
- * and overlay panels mount once and persist across navigation. Putting them in each
- * page would remount and re-animate them on every route change, and would close the
- * cart drawer whenever you navigated.
+ * - **Public** — dashboard, store, product pages, collection. Requiring a sign-in before someone can
+ *   see what you sell is a reliable way to lose the sale.
+ * - **`ProtectedRoute`** — checkout and orders. These need an owner.
+ * - **`AdminRoute`** — the whole admin panel. Checks the role, and shows a "no permission" screen
+ *   rather than a login form for a signed-in customer, since logging in again would change nothing.
  *
- * `ProtectedRoute` is itself a layout route: it renders an `<Outlet />` when signed in
- * and redirects otherwise, so one guard covers every private page rather than each page
- * checking for itself.
+ * Both guards are layout routes rendering an `<Outlet />`, so one guard covers every page beneath it
+ * and a newly added route inherits protection instead of being accidentally public.
  *
- * ## Which routes are private
- *
- * Checkout and orders need an owner, so they are guarded. Browsing — dashboard, store,
- * product pages — is deliberately public: requiring a sign-in before someone can see
- * what you sell is a reliable way to lose the sale. The collection stays public too,
- * since it lives in `localStorage` and works fine for a guest.
+ * Neither is a security boundary — the backend enforces authentication and `hasRole("ADMIN")` on
+ * every request independently. These only decide what to render.
  */
 export default function App() {
   return (
     <Routes>
       <Route element={<ConsoleLayout />}>
-        {/* One Suspense boundary inside the layout, so the shell stays visible while a
-            page chunk loads. */}
         <Route element={<SuspenseOutlet />}>
           {/* ---- Public ---- */}
           <Route index element={<HomePage />} />
           <Route path="store" element={<StorePage />} />
-          {/* `:id` is read with `useParams` and validated there — a non-numeric id
-              renders the not-found state rather than firing a doomed request. */}
           <Route path="product/:id" element={<ProductPage />} />
           <Route path="collection" element={<CollectionPage />} />
           <Route path="settings" element={<SettingsPage />} />
@@ -97,11 +94,25 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="checkout" element={<CheckoutPage />} />
             <Route path="orders" element={<OrdersPage />} />
-            <Route path="orders/:id" element={<OrderDetailPage />} />
+            {/* Keyed by the order's public reference (TS-2026-0007), not its database id —
+                sequential ids let anyone probe a neighbouring customer's order. */}
+            <Route path="orders/:reference" element={<OrderDetailPage />} />
           </Route>
 
-          {/* Catch-all. Must be last: routes match in order, and a `*` placed earlier
-              would swallow everything after it. */}
+          {/* ---- Requires ADMIN ---- */}
+          <Route path="admin" element={<AdminRoute />}>
+            <Route element={<AdminLayout />}>
+              <Route index element={<AdminDashboardPage />} />
+              <Route path="products" element={<AdminProductsPage />} />
+              <Route path="orders" element={<AdminOrdersPage />} />
+              <Route path="orders/:reference" element={<AdminOrderDetailPage />} />
+              <Route path="catalog" element={<AdminCatalogPage />} />
+              <Route path="users" element={<AdminUsersPage />} />
+            </Route>
+          </Route>
+
+          {/* Catch-all. Must be last: routes match in order, and a `*` placed earlier would
+              swallow everything after it. */}
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>

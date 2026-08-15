@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { useUiStore } from "../../store/uiStore";
-import { useProducts } from "../../hooks/useProducts";
-import { getBrand, getCategory } from "../../lib/catalog";
+import { useAllProducts } from "../../hooks/useProducts";
+import { brandOf, categoryOf } from "../../lib/catalog";
 import { formatPrice } from "../../lib/format";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
@@ -101,7 +101,7 @@ function answer(question: string, products: Product[]): Message {
 
   // --- work / programming --------------------------------------------------
   if (/programming|coding|develop|work|business/.test(text)) {
-    const laptops = products.filter((product) => getCategory(product) === "Laptops");
+    const laptops = products.filter((product) => categoryOf(product) === "Laptops");
     return {
       id,
       role: "assistant",
@@ -140,7 +140,7 @@ export function AssistantPanel() {
   const isOpen = useUiStore((state) => state.openPanel === "assistant");
   const closePanel = useUiStore((state) => state.closePanel);
 
-  const { data: products } = useProducts();
+  const { data: products } = useAllProducts();
   const navigate = useNavigate();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -227,7 +227,7 @@ export function AssistantPanel() {
                               {product.name}
                             </span>
                             <span className="text-[10px] text-ink-faint">
-                              {getBrand(product)}
+                              {brandOf(product)}
                             </span>
                           </span>
                           <span className="shrink-0 text-[11px] font-semibold tabular-nums text-ink">

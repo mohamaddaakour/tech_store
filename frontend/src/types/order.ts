@@ -1,42 +1,32 @@
 /**
- * Order types — SUBJECT.md Phase 3.
- *
- * These deliberately mirror the shape a Spring Boot `OrderResponse` would have,
- * so when the backend endpoints land the swap is "replace the store with a
- * `useQuery`" rather than a rewrite of every component.
+ * Order types — now mirroring the backend's real `OrderResponse`, not the old localStorage shape.
  */
 
-/**
- * The order lifecycle from SUBJECT.md Phase 3.
- *
- * A union of literals, not `string`, so a typo like `"Paid"` is a compile error
- * rather than a status badge that silently never matches.
- */
 export type OrderStatus = "PENDING" | "PAID" | "SHIPPED" | "DELIVERED" | "CANCELLED";
 
 /**
- * The forward path through the lifecycle.
+ * The forward path through the lifecycle, for drawing the timeline.
  *
- * CANCELLED is absent on purpose: it is an exit from any state, not a step in
- * the sequence, so the timeline renders these four and treats cancellation
- * separately.
+ * CANCELLED is absent on purpose: it is an exit from any state, not a step in the sequence, so the
+ * timeline renders these four and treats cancellation separately.
  */
 export const ORDER_FLOW: readonly OrderStatus[] = ["PENDING", "PAID", "SHIPPED", "DELIVERED"];
 
-/**
- * A line in an order.
- *
- * Unlike the cart, this **snapshots** name, image and unit price. An order is a
- * historical record: if the product is later renamed or repriced, last month's
- * receipt must still show what was actually bought and charged. This is the one
- * place copying product data is not just acceptable but required.
- */
 export interface OrderItem {
-  productId: number;
-  name: string;
-  imageUrl: string;
+  /** Null when the product has since been deleted from the catalogue. */
+  productId: number | null;
+  /** Snapshot taken at purchase time — a receipt must show what was actually bought. */
+  productName: string;
+  imageUrl: string | null;
   unitPriceCents: number;
   quantity: number;
+  lineTotalCents: number;
+}
+
+export interface OrderEvent {
+  status: OrderStatus;
+  /** ISO 8601. */
+  at: string;
 }
 
 export interface ShippingAddress {
@@ -47,23 +37,43 @@ export interface ShippingAddress {
   country: string;
 }
 
-/** One entry in the animated status timeline. */
-export interface OrderEvent {
-  status: OrderStatus;
-  /** ISO 8601 string, not a `Date` — `Date` objects do not survive JSON round-trips. */
-  at: string;
-}
-
 export interface Order {
-  /** Human-readable reference, e.g. `TS-2026-0007`. Shown to the customer. */
-  id: string;
-  createdAt: string;
+  /** The customer-facing reference, e.g. `TS-2026-0007`. Used as the URL key, not the numeric id. */
+  reference: string;
   status: OrderStatus;
-  items: OrderItem[];
+  /** True when no further transition is possible. Computed by the server's state machine. */
+  terminal: boolean;
+  /**
+   * Which statuses this order may move to next.
+   *
+   * The server computes this from its state machine, so the admin UI renders exactly the valid
+   * options — an invalid transition is never even offered, rather than being offered and rejected.
+   */
+  allowedNextStatuses: OrderStatus[];
   subtotalCents: number;
   shippingCents: number;
   totalCents: number;
   address: ShippingAddress;
-  /** Append-only audit trail, used to draw the timeline with real timestamps. */
+  items: OrderItem[];
   history: OrderEvent[];
+  /** Only populated on admin responses; null for a customer reading their own order. */
+  customerEmail: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** The lighter shape used by list views. */
+export interface OrderSummary {
+  reference: string;
+  status: OrderStatus;
+  totalCents: number;
+  itemCount: number;
+  customerEmail: string | null;
+  createdAt: string;
+}
+
+/** Body of `POST /api/orders`. Note: no prices — the server looks those up. */
+export interface CheckoutRequest {
+  items: Array<{ productId: number; quantity: number }>;
+  address: ShippingAddress;
 }
