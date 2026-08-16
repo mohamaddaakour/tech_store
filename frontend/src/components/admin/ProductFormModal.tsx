@@ -1,7 +1,6 @@
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
 import { z } from "zod";
-import toast from "react-hot-toast";
+import { toast } from "../../store/toastStore";
 import { getErrorMessage, getFieldErrors } from "../../api/client";
 import { useCreateProduct, useUpdateProduct } from "../../hooks/useAdmin";
 import { useBrands, useCategories } from "../../hooks/useProducts";
@@ -10,19 +9,6 @@ import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Modal } from "../ui/Modal";
 
-/**
- * Form schema.
- *
- * Prices are entered in **dollars** but the API takes **cents**, so the conversion happens on submit.
- * Asking an admin to type "149900" for $1,499 would be a reliable source of hundred-fold pricing
- * mistakes.
- *
- * The numeric fields are plain `z.number()`, and the conversion from the input's string value happens
- * at registration with `{ valueAsNumber: true }`. That is deliberately *not* `z.coerce.number()`:
- * coercion makes the schema's input type `unknown`, which no longer matches its output type, and
- * `useForm` then needs three generic parameters to reconcile them. Converting at the input keeps one
- * type throughout. An empty field yields `NaN`, which `z.number()` rejects — hence the messages below.
- */
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(200, "Name is too long"),
   description: z.string().max(5000, "Description is too long"),
@@ -35,29 +21,28 @@ const schema = z.object({
     .int("Stock must be a whole number")
     .min(0, "Stock cannot be negative"),
   imageUrl: z.string().max(500, "URL is too long"),
-  // "" is the sentinel for "none" — a `<select>` cannot hold null.
   categoryId: z.string(),
   brandId: z.string(),
 });
 
-type FormValues = z.infer<typeof schema>;
+interface FormState {
+  name: string;
+  description: string;
+  priceDollars: string;
+  stock: string;
+  imageUrl: string;
+  categoryId: string;
+  brandId: string;
+}
+
+type FieldErrors = Partial<Record<keyof FormState, string>>;
 
 interface ProductFormModalProps {
   open: boolean;
   onClose: () => void;
-  /** The product being edited, or undefined to create a new one. */
   product?: Product;
 }
 
-/**
- * Create/edit product form.
- *
- * One component for both modes, since they differ only in which mutation they call and the default
- * values. Two near-identical forms would inevitably drift.
- *
- * Server-side `fieldErrors` are merged into the display, so a rule only the backend knows about (a
- * category that was deleted between page load and submit) still lands on the right input.
- */
 export function ProductFormModal({ open, onClose, product }: ProductFormModalProps) {
   const { data: categories } = useCategories();
   const { data: brands } = useBrands();
@@ -67,31 +52,18 @@ export function ProductFormModal({ open, onClose, product }: ProductFormModalPro
   const isEditing = Boolean(product);
   const activeMutation = isEditing ? updateProduct : createProduct;
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    /**
-     * Defaults are computed from `product`, and the modal is keyed by product id at the call site so
-     * this component remounts when the selection changes. That is what makes the defaults reload —
-     * `useForm` reads `defaultValues` only on mount, so without the key an edit form would keep
-     * showing the previously selected product.
-     */
-    defaultValues: {
-      name: product?.name ?? "",
-      description: product?.description ?? "",
-      priceDollars: product ? product.priceCents / 100 : 0,
-      stock: product?.stock ?? 0,
-      imageUrl: product?.imageUrl ?? "https://placehold.co/600x400",
-      // Look up the id from the slug: ProductResponse carries names and slugs, not ids.
-      categoryId: String(
-        categories?.find((category) => category.slug === product?.categorySlug)?.id ?? "",
-      ),
-      brandId: String(brands?.find((brand) => brand.slug === product?.brandSlug)?.id ?? ""),
-    },
-  });
+  const [values, setValues] = useState<FormState>(() => ({
+    name: product?.name ?? "",
+    description: product?.description ?? "",
+    priceDollars: product ? String(product.priceCents / 100) : "0",
+    stock: String(product?.stock ?? 0),
+    imageUrl: product?.imageUrl ?? "https://placehold.co/600x400",
+    categoryId: String(
+      categories?.find((category) => category.slug === product?.categorySlug)?.id ?? "",
+    ),
+    brandId: String(brands?.find((brand) => brand.slug === product?.brandSlug)?.id ?? ""),
+  }));
+  const [errors, setErrors] = useState<FieldErrors>({});
 
   const serverFieldErrors = getFieldErrors(activeMutation.error);
   const formError =
@@ -99,17 +71,39 @@ export function ProductFormModal({ open, onClose, product }: ProductFormModalPro
       ? getErrorMessage(activeMutation.error)
       : null;
 
-  function onSubmit(values: FormValues) {
+  function updateField(field: keyof FormState, value: string) {
+    setValues((current) => ({ ...current, [field]: value }));
+  }
+
+  function onSubmit(event: React.FormEvent) {
+    event.preventDefault();
+
+    const result = schema.safeParse({
+      ...values,
+      priceDollars: Number(values.priceDollars),
+      stock: Number(values.stock),
+    });
+
+    if (!result.success) {
+      const fieldErrors: FieldErrors = {};
+      for (const issue of result.error.issues) {
+        const field = issue.path[0] as keyof FormState;
+        fieldErrors[field] ??= issue.message;
+      }
+      setErrors(fieldErrors);
+      return;
+    }
+
+    setErrors({});
+    const parsed = result.data;
     const input = {
-      name: values.name,
-      description: values.description,
-      // Dollars back to cents. Math.round guards against floating-point drift: 49.99 * 100 is
-      // 4998.999999999999 in binary, and a bare cast would store 4998.
-      priceCents: Math.round(values.priceDollars * 100),
-      stock: values.stock,
-      imageUrl: values.imageUrl,
-      categoryId: values.categoryId ? Number(values.categoryId) : null,
-      brandId: values.brandId ? Number(values.brandId) : null,
+      name: parsed.name,
+      description: parsed.description,
+      priceCents: Math.round(parsed.priceDollars * 100),
+      stock: parsed.stock,
+      imageUrl: parsed.imageUrl,
+      categoryId: parsed.categoryId ? Number(parsed.categoryId) : null,
+      brandId: parsed.brandId ? Number(parsed.brandId) : null,
     };
 
     const onSuccess = () => {
@@ -128,8 +122,13 @@ export function ProductFormModal({ open, onClose, product }: ProductFormModalPro
       title={isEditing ? "Edit product" : "New product"}
       description={isEditing ? product?.name : "Add an item to the catalogue"}
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
-        <Input label="Name" {...register("name")} error={errors.name?.message ?? serverFieldErrors.name} />
+      <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+        <Input
+          label="Name"
+          value={values.name}
+          onChange={(event) => updateField("name", event.target.value)}
+          error={errors.name ?? serverFieldErrors.name}
+        />
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="product-description" className="text-xs font-medium text-ink-muted">
@@ -138,12 +137,13 @@ export function ProductFormModal({ open, onClose, product }: ProductFormModalPro
           <textarea
             id="product-description"
             rows={3}
-            {...register("description")}
+            value={values.description}
+            onChange={(event) => updateField("description", event.target.value)}
             className="w-full resize-y rounded-control bg-surface-2 px-3 py-2 text-sm text-ink ring-1 ring-line outline-none focus:ring-2 focus:ring-accent"
           />
           {errors.description && (
             <p role="alert" className="text-xs text-danger">
-              {errors.description.message}
+              {errors.description}
             </p>
           )}
         </div>
@@ -152,27 +152,28 @@ export function ProductFormModal({ open, onClose, product }: ProductFormModalPro
           <Input
             label="Price ($)"
             type="number"
-            // Cents precision, and `min` gives the browser's stepper sane bounds.
             step="0.01"
             min="0"
-            // `valueAsNumber` makes RHF hand Zod a number instead of the input's string.
-            {...register("priceDollars", { valueAsNumber: true })}
-            error={errors.priceDollars?.message ?? serverFieldErrors.priceCents}
+            value={values.priceDollars}
+            onChange={(event) => updateField("priceDollars", event.target.value)}
+            error={errors.priceDollars ?? serverFieldErrors.priceCents}
           />
           <Input
             label="Stock"
             type="number"
             step="1"
             min="0"
-            {...register("stock", { valueAsNumber: true })}
-            error={errors.stock?.message ?? serverFieldErrors.stock}
+            value={values.stock}
+            onChange={(event) => updateField("stock", event.target.value)}
+            error={errors.stock ?? serverFieldErrors.stock}
           />
         </div>
 
         <Input
           label="Image URL"
-          {...register("imageUrl")}
-          error={errors.imageUrl?.message ?? serverFieldErrors.imageUrl}
+          value={values.imageUrl}
+          onChange={(event) => updateField("imageUrl", event.target.value)}
+          error={errors.imageUrl ?? serverFieldErrors.imageUrl}
         />
 
         <div className="grid grid-cols-2 gap-4">
@@ -182,7 +183,8 @@ export function ProductFormModal({ open, onClose, product }: ProductFormModalPro
             </label>
             <select
               id="product-category"
-              {...register("categoryId")}
+              value={values.categoryId}
+              onChange={(event) => updateField("categoryId", event.target.value)}
               className="h-10 rounded-control bg-surface-2 px-2 text-sm text-ink ring-1 ring-line outline-none focus:ring-2 focus:ring-accent"
             >
               <option value="">None</option>
@@ -200,7 +202,8 @@ export function ProductFormModal({ open, onClose, product }: ProductFormModalPro
             </label>
             <select
               id="product-brand"
-              {...register("brandId")}
+              value={values.brandId}
+              onChange={(event) => updateField("brandId", event.target.value)}
               className="h-10 rounded-control bg-surface-2 px-2 text-sm text-ink ring-1 ring-line outline-none focus:ring-2 focus:ring-accent"
             >
               <option value="">None</option>

@@ -6,13 +6,6 @@ interface CartLineRowProps {
   line: CartLine;
 }
 
-/**
- * One row in the cart drawer: thumbnail, name, quantity stepper, line total.
- *
- * Split out of `CartDrawer` because the drawer was becoming a component that both
- * laid out a panel *and* knew how quantity editing works. Separating them means this
- * row can be reused unchanged on the Phase 4 checkout summary.
- */
 export function CartLineRow({ line }: CartLineRowProps) {
   const increment = useCartStore((state) => state.increment);
   const decrement = useCartStore((state) => state.decrement);
@@ -20,11 +13,8 @@ export function CartLineRow({ line }: CartLineRowProps) {
 
   const { product, quantity } = line;
 
-  /** The total for this row, not the unit price — quantity × unit. */
   const lineTotal = product.priceCents * quantity;
 
-  // The store already refuses to go past stock; reflecting it here disables the
-  // button so the user is not clicking something that silently does nothing.
   const atStockLimit = quantity >= product.stock;
 
   return (
@@ -36,15 +26,11 @@ export function CartLineRow({ line }: CartLineRowProps) {
       />
 
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        {/* `min-w-0` on the flex parent plus `truncate` here is what actually clips a
-            long product name. Without `min-w-0` a flex child refuses to shrink below
-            its content width, and the text overflows the drawer instead. */}
         <p className="truncate text-xs font-medium text-ink" title={product.name}>
           {product.name}
         </p>
 
         <div className="flex items-center justify-between gap-2">
-          {/* ---- Quantity stepper ---- */}
           <div className="inline-flex items-center rounded-control bg-surface-2 ring-1 ring-line">
             <button
               onClick={() => decrement(product.id)}
@@ -54,8 +40,6 @@ export function CartLineRow({ line }: CartLineRowProps) {
               <span aria-hidden="true">−</span>
             </button>
 
-            {/* `aria-live="polite"` makes a screen reader read the new number after a
-                change, without interrupting whatever it is currently saying. */}
             <span
               aria-live="polite"
               className="w-8 text-center text-xs font-semibold tabular-nums text-ink"

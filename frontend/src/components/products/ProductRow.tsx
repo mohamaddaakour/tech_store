@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "../ui/icons";
 import type { Product } from "../../types/product";
 import { ProductTile } from "./ProductTile";
 import { cn } from "../../lib/cn";
@@ -9,33 +9,15 @@ interface ProductRowProps {
   title: string;
   subtitle?: string;
   products: Product[];
-  /** Optional "see all" destination. */
+
   viewAllTo?: string;
 }
 
-/**
- * A horizontally scrolling row of tiles — the console dashboard's core layout unit.
- *
- * Scrolling is native (`overflow-x-auto` + `snap-x`), not a JS carousel. That is a
- * deliberate choice: native scroll gives touch swipe, trackpad gestures, keyboard
- * scrolling and momentum for free, and cannot desynchronise the way a hand-rolled
- * transform-based carousel does. The arrow buttons simply call `scrollBy`.
- *
- * The arrows hide themselves when there is nothing further to scroll, so the
- * control never lies about what it will do.
- */
 export function ProductRow({ title, subtitle, products, viewAllTo }: ProductRowProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
-  /**
-   * Recomputes which arrows are usable.
-   *
-   * The `- 1` absorbs sub-pixel rounding: at the far right, `scrollLeft +
-   * clientWidth` often lands a fraction short of `scrollWidth`, which would leave
-   * the right arrow enabled forever.
-   */
   function updateArrows() {
     const scroller = scrollerRef.current;
     if (!scroller) return;
@@ -47,24 +29,17 @@ export function ProductRow({ title, subtitle, products, viewAllTo }: ProductRowP
   useEffect(() => {
     updateArrows();
 
-    // Also react to viewport resizes: a row that needed arrows at 800px wide may
-    // fit entirely at 1600px.
     window.addEventListener("resize", updateArrows);
     return () => window.removeEventListener("resize", updateArrows);
-    // Re-runs when the product count changes, since that changes scrollWidth.
   }, [products.length]);
 
   function scrollByPage(direction: -1 | 1) {
     const scroller = scrollerRef.current;
     if (!scroller) return;
 
-    // Scroll by 80% of the visible width rather than 100%, so a partially visible
-    // tile stays on screen as a visual anchor for where you were.
     scroller.scrollBy({ left: direction * scroller.clientWidth * 0.8, behavior: "smooth" });
   }
 
-  // Render nothing at all rather than an empty titled row — a heading over blank
-  // space looks like a failed request.
   if (products.length === 0) return null;
 
   return (
@@ -85,8 +60,6 @@ export function ProductRow({ title, subtitle, products, viewAllTo }: ProductRowP
             </Link>
           )}
 
-          {/* Arrows are desktop-only: on touch you simply swipe, and the buttons
-              would just consume space. */}
           <div className="hidden items-center gap-1 sm:flex">
             <RowArrow direction="left" disabled={!canScrollLeft} onClick={() => scrollByPage(-1)} />
             <RowArrow direction="right" disabled={!canScrollRight} onClick={() => scrollByPage(1)} />
@@ -97,8 +70,7 @@ export function ProductRow({ title, subtitle, products, viewAllTo }: ProductRowP
       <div
         ref={scrollerRef}
         onScroll={updateArrows}
-        // `snap-x` + `snap-start` on each child makes scrolling settle with a tile
-        // aligned to the left edge instead of stopping mid-tile.
+
         className="no-scrollbar -mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2"
       >
         {products.map((product, index) => (
@@ -111,7 +83,6 @@ export function ProductRow({ title, subtitle, products, viewAllTo }: ProductRowP
   );
 }
 
-/** One scroll arrow. Split out purely to keep the row markup readable. */
 function RowArrow({
   direction,
   disabled,
@@ -131,8 +102,7 @@ function RowArrow({
       className={cn(
         "grid size-8 place-items-center rounded-full bg-surface-2 text-ink-muted ring-1 ring-line",
         "transition-all duration-150 hover:bg-surface-3 hover:text-ink",
-        // Fade rather than vanish, so the row's controls do not shift position
-        // when one becomes unavailable.
+
         "disabled:pointer-events-none disabled:opacity-30",
       )}
     >

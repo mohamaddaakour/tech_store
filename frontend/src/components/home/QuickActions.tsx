@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
-import { motion, useReducedMotion } from "motion/react";
-import { Heart, LayoutGrid, Package, Sparkles } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Heart, LayoutGrid, Package, Sparkles } from "../ui/icons";
+import type { IconComponent } from "../ui/icons";
 import { useUiStore } from "../../store/uiStore";
 import { useWishlistStore } from "../../store/wishlistStore";
 import { useMyOrders } from "../../hooks/useOrders";
@@ -9,21 +8,12 @@ import { useAuthStore } from "../../store/authStore";
 import { useAllProducts } from "../../hooks/useProducts";
 import { CountUp } from "../ui/CountUp";
 
-/**
- * The dashboard's smaller "quick action" tiles — the console equivalent of the
- * shortcut row beneath the featured panel.
- *
- * Each one carries a live count, so the row doubles as an at-a-glance status
- * readout: how big the catalogue is, how many things you have saved, how many
- * orders are open. A grid of static links would be far less useful.
- */
-
 interface Tile {
   label: string;
   hint: string;
-  icon: LucideIcon;
+  icon: IconComponent;
   count: number;
-  /** A route, or omit and pass `onClick` for a panel. */
+
   to?: string;
   onClick?: () => void;
 }
@@ -31,19 +21,11 @@ interface Tile {
 export function QuickActions() {
   const setPanel = useUiStore((state) => state.setPanel);
   const savedCount = useWishlistStore((state) => state.ids.length);
-  /**
-   * Order count for a signed-in user.
-   *
-   * The query is skipped entirely for guests — `useMyOrders` requires a token, and firing it
-   * anonymously would produce a pointless 401 (which the axios interceptor would then try to refresh)
-   * on every dashboard load for a visitor who has no account.
-   */
+
   const isSignedIn = useAuthStore((state) => state.user !== null);
   const { data: myOrders } = useMyOrders(0, { enabled: isSignedIn });
   const orderCount = myOrders?.totalElements ?? 0;
   const { data: products } = useAllProducts();
-
-  const reduceMotion = useReducedMotion();
 
   const tiles: Tile[] = [
     {
@@ -81,8 +63,6 @@ export function QuickActions() {
       {tiles.map((tile, index) => {
         const content = (
           <>
-            {/* Hover glow, painted behind the content. `opacity-0` -> `group-hover`
-                means it costs nothing until you reach for the tile. */}
             <div className="absolute inset-0 gradient-accent opacity-0 transition-opacity duration-300 group-hover:opacity-10" />
 
             <div className="relative flex items-start justify-between gap-2">
@@ -90,8 +70,6 @@ export function QuickActions() {
                 <tile.icon className="size-4.5" />
               </span>
 
-              {/* Counts of zero are hidden rather than shown as "0" — an empty
-                  collection does not need a badge announcing its emptiness. */}
               {tile.count > 0 && (
                 <span className="text-xl font-black tabular-nums text-ink">
                   <CountUp value={tile.count} />
@@ -110,18 +88,11 @@ export function QuickActions() {
           "group relative flex w-full flex-col overflow-hidden rounded-tile bg-surface p-4 text-left ring-1 ring-line transition-shadow duration-300 hover:glow-accent focus-visible:glow-accent";
 
         return (
-          <motion.div
+          <div
             key={tile.label}
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={
-              reduceMotion ? { duration: 0 } : { duration: 0.4, delay: index * 0.06 }
-            }
-            whileHover={reduceMotion ? undefined : { y: -4 }}
+            style={{ animationDelay: `${index * 60}ms` }}
+            className="animate-rise transition-transform duration-300 hover:-translate-y-1"
           >
-            {/* A real anchor for navigation, a button for a panel. Using a button to
-                navigate would lose middle-click and "open in new tab"; using an
-                anchor for a panel would lie about where it goes. */}
             {tile.to ? (
               <Link to={tile.to} className={tileClasses}>
                 {content}
@@ -131,7 +102,7 @@ export function QuickActions() {
                 {content}
               </button>
             )}
-          </motion.div>
+          </div>
         );
       })}
     </div>

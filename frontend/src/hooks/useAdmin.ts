@@ -25,12 +25,6 @@ export const adminKeys = {
   users: (page: number) => ["admin", "users", page] as const,
 };
 
-/**
- * The dashboard aggregate.
- *
- * A short `staleTime` — revenue and order counts genuinely move, and an operator watching this
- * screen expects it to be current. Contrast with categories, cached for five minutes.
- */
 export function useDashboard() {
   return useQuery({
     queryKey: adminKeys.dashboard,
@@ -61,16 +55,6 @@ export function useAdminUsers(page = 0) {
   });
 }
 
-/**
- * Invalidates everything a catalogue write can affect.
- *
- * Extracted because all seven mutations below need the same refresh: the admin tables, the
- * storefront's product queries (a renamed product must not stay stale on the store page), and the
- * dashboard (product counts, inventory value, low-stock list).
- *
- * Getting this wrong is the classic TanStack Query bug — the mutation succeeds, the server is
- * correct, and the UI keeps showing old data until a manual reload.
- */
 function useCatalogInvalidation() {
   const queryClient = useQueryClient();
 
@@ -81,8 +65,6 @@ function useCatalogInvalidation() {
     queryClient.invalidateQueries({ queryKey: productKeys.brands });
   };
 }
-
-// -------------------------------------------------------------------------- products
 
 export function useCreateProduct() {
   const invalidate = useCatalogInvalidation();
@@ -110,8 +92,6 @@ export function useDeleteProduct() {
     onSuccess: invalidate,
   });
 }
-
-// ------------------------------------------------------------- categories and brands
 
 export function useCreateCategory() {
   const invalidate = useCatalogInvalidation();
@@ -148,8 +128,6 @@ export function useDeleteBrand() {
   const invalidate = useCatalogInvalidation();
   return useMutation({ mutationFn: deleteBrand, onSuccess: invalidate });
 }
-
-// ----------------------------------------------------------------------------- users
 
 export function useUpdateUserRole() {
   const queryClient = useQueryClient();

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import toast from "react-hot-toast";
+import { toast } from "../store/toastStore";
 import { useAllProducts } from "../hooks/useProducts";
 import { useWishlistStore } from "../store/wishlistStore";
 import { useCartStore } from "../store/cartStore";
@@ -9,27 +9,12 @@ import { ProductGridSkeleton } from "../components/products/ProductGridSkeleton"
 import { Button, ButtonLink } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 
-/**
- * "My Collection" — the saved-products page (the wishlist).
- *
- * The store keeps only product **ids**, so this page resolves them against the live
- * catalogue. That is the point of storing ids: a product saved last month renders at
- * today's price and today's stock, rather than showing a stale snapshot.
- *
- * A side effect worth understanding: ids whose product no longer exists silently
- * disappear from the grid, because `flatMap` drops the misses. That is the desired
- * behaviour — a deleted product should not render as a broken tile.
- */
 export default function CollectionPage() {
   const { data: products, isPending } = useAllProducts();
   const savedIds = useWishlistStore((state) => state.ids);
   const clearWishlist = useWishlistStore((state) => state.clear);
   const addToCart = useCartStore((state) => state.add);
 
-  /**
-   * Map over `savedIds`, not over `products`, so the grid keeps the order things were
-   * saved in (newest first) rather than the catalogue's order.
-   */
   const savedProducts = useMemo(() => {
     if (!products) return [];
     return savedIds.flatMap((id) => {

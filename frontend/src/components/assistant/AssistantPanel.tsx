@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles } from "lucide-react";
+import { Sparkles } from "../ui/icons";
 import { useUiStore } from "../../store/uiStore";
 import { useAllProducts } from "../../hooks/useProducts";
 import { brandOf, categoryOf } from "../../lib/catalog";
@@ -10,35 +10,14 @@ import { Button } from "../ui/Button";
 import { Drawer } from "../ui/Drawer";
 import type { Product } from "../../types/product";
 
-/**
- * The AI shopping assistant panel.
- *
- * ## What this honestly is
- *
- * SUBJECT.md Phase 7 specifies a real AI assistant, grounded in the database via
- * RAG. That needs backend work which is explicitly out of scope here, so this is
- * the **interface** for it, answering from the product list already in the cache
- * with deterministic rules — not a language model.
- *
- * It is labelled as such in the UI rather than pretending, and the rules only
- * ever surface products that actually exist. That respects the spec's hardest
- * constraint — "the AI must never invent products that do not exist" — which a
- * mocked chat transcript would violate the moment someone asked about a product
- * that is not in stock.
- *
- * When the backend lands, `answer()` becomes a mutation to `/api/assistant` and
- * the surrounding chat UI is unchanged.
- */
-
 interface Message {
   id: number;
   role: "user" | "assistant";
   text: string;
-  /** Products cited by this answer, rendered as real, clickable cards. */
+
   products?: Product[];
 }
 
-/** Canned prompts, taken from the examples in SUBJECT.md Phase 7. */
 const SUGGESTIONS = [
   "What laptops are under $1500?",
   "Which product has the best GPU?",
@@ -46,18 +25,10 @@ const SUGGESTIONS = [
   "Recommend something for programming",
 ];
 
-/**
- * Deterministic query handling over the real catalog.
- *
- * Reads as a small rules engine: match intent by keyword, then answer from data.
- * Every branch cites products from `products`, so an answer can never mention
- * something that does not exist.
- */
 function answer(question: string, products: Product[]): Message {
   const text = question.toLowerCase();
   const id = Date.now();
 
-  // --- "under $X" / "cheaper than X" -> price filter -------------------------
   const priceMatch = text.match(/(?:under|below|less than|cheaper than)\s*\$?\s*(\d[\d,]*)/);
   if (priceMatch) {
     const limitCents = Number(priceMatch[1].replace(/,/g, "")) * 100;
@@ -73,7 +44,6 @@ function answer(question: string, products: Product[]): Message {
     };
   }
 
-  // --- stock ---------------------------------------------------------------
   if (/stock|available|availability/.test(text)) {
     const inStock = products.filter((product) => product.inStock);
     return {
@@ -84,7 +54,6 @@ function answer(question: string, products: Product[]): Message {
     };
   }
 
-  // --- GPU / gaming --------------------------------------------------------
   if (/gpu|graphics|gaming|rtx/.test(text)) {
     const gpuProducts = products.filter((product) =>
       /rtx|gtx|graphics|gaming/i.test(`${product.name} ${product.description}`),
@@ -99,7 +68,6 @@ function answer(question: string, products: Product[]): Message {
     };
   }
 
-  // --- work / programming --------------------------------------------------
   if (/programming|coding|develop|work|business/.test(text)) {
     const laptops = products.filter((product) => categoryOf(product) === "Laptops");
     return {
@@ -112,7 +80,6 @@ function answer(question: string, products: Product[]): Message {
     };
   }
 
-  // --- cheapest / most expensive -------------------------------------------
   if (/cheapest|budget|least expensive/.test(text)) {
     const cheapest = [...products].sort((a, b) => a.priceCents - b.priceCents)[0];
     return {
@@ -123,9 +90,6 @@ function answer(question: string, products: Product[]): Message {
     };
   }
 
-  // --- fallback ------------------------------------------------------------
-  // Says plainly that it did not understand and shows the catalogue, rather than
-  // inventing a plausible-sounding answer.
   return {
     id,
     role: "assistant",
@@ -166,7 +130,6 @@ export function AssistantPanel() {
   return (
     <Drawer open={isOpen} onClose={closePanel} title="Shopping assistant">
       <div className="flex flex-col gap-4">
-        {/* Honest labelling, in the UI and not just in a code comment. */}
         <div className="rounded-control bg-info-soft p-3">
           <p className="text-[11px] leading-relaxed text-info">
             Answers come from live catalogue data using rule-based matching. The
@@ -208,7 +171,6 @@ export function AssistantPanel() {
                   <span>{message.text}</span>
                 </div>
 
-                {/* Cited products, as real cards you can act on. */}
                 {message.products && message.products.length > 0 && (
                   <ul className="flex flex-col gap-1.5">
                     {message.products.map((product) => (
@@ -243,7 +205,6 @@ export function AssistantPanel() {
           </ul>
         )}
 
-        {/* ---- Composer ---- */}
         <form
           onSubmit={(event) => {
             event.preventDefault();

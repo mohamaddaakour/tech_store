@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, ShieldCheck, User as UserIcon } from "lucide-react";
-import toast from "react-hot-toast";
+import { ChevronLeft, ChevronRight, ShieldCheck, User as UserIcon } from "../../components/ui/icons";
+import { toast } from "../../store/toastStore";
 import { getErrorMessage } from "../../api/client";
 import { useAdminUsers, useUpdateUserRole } from "../../hooks/useAdmin";
 import { useAuthStore } from "../../store/authStore";
@@ -19,15 +19,6 @@ function formatDate(iso: string): string {
   });
 }
 
-/**
- * Account management (SUBJECT.md Phase 6: "Users").
- *
- * The row for the signed-in admin has its controls disabled, mirroring the server rule that an admin
- * cannot change their own role. Without that guard the last remaining admin could demote themselves
- * and lock every human out of this panel, recoverable only with a manual UPDATE against the database.
- * The server enforces it either way; disabling the button just avoids offering an action that will
- * fail.
- */
 export default function AdminUsersPage() {
   const [page, setPage] = useState(0);
   const { data, isPending, error, refetch, isFetching } = useAdminUsers(page);
@@ -125,7 +116,7 @@ export default function AdminUsersPage() {
                           <Button
                             variant={isAdmin ? "secondary" : "primary"}
                             size="sm"
-                            // Disabled for your own row — see the class note.
+
                             disabled={isSelf}
                             loading={updateRole.isPending}
                             onClick={() => changeRole(user.id, isAdmin ? "CUSTOMER" : "ADMIN")}

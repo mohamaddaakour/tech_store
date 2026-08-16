@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "motion/react";
-import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight } from "../components/ui/icons";
 import { getErrorMessage } from "../api/client";
 import { useMyOrders } from "../hooks/useOrders";
 import { formatPrice, pluralize } from "../lib/format";
@@ -18,13 +17,6 @@ function formatDate(iso: string): string {
   });
 }
 
-/**
- * Order history — now served from the database rather than `localStorage`.
- *
- * A protected route: orders belong to an account, so an anonymous visitor is redirected to sign in.
- * The backend independently scopes the query to the authenticated user, so this cannot show anyone
- * else's orders even if the guard were bypassed.
- */
 export default function OrdersPage() {
   const [page, setPage] = useState(0);
   const { data, isPending, error, refetch, isFetching } = useMyOrders(page);
@@ -83,11 +75,10 @@ export default function OrdersPage() {
         <>
           <ul className="flex flex-col gap-3">
             {orders.map((order, index) => (
-              <motion.li
+              <li
                 key={order.reference}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35, delay: index * 0.05 }}
+                style={{ animationDelay: `${index * 50}ms` }}
+                className="animate-rise"
               >
                 <Link
                   to={`/orders/${order.reference}`}
@@ -109,11 +100,10 @@ export default function OrdersPage() {
                     <span className="text-sm font-bold tabular-nums text-ink">
                       {formatPrice(order.totalCents)}
                     </span>
-                    {/* Nudges right on hover — a small cue that this opens. */}
                     <ArrowRight className="size-4 text-ink-faint transition-transform duration-200 group-hover:translate-x-1 group-hover:text-accent" />
                   </div>
                 </Link>
-              </motion.li>
+              </li>
             ))}
           </ul>
 

@@ -9,13 +9,6 @@ interface BadgeProps {
   className?: string;
 }
 
-/**
- * A small status pill.
- *
- * Each tone pairs a tinted background with matching text, both from theme tokens,
- * so the pills stay legible when the theme flips to light — a hardcoded
- * `bg-green-900` would become unreadable.
- */
 const toneClasses: Record<BadgeTone, string> = {
   neutral: "bg-surface-3 text-ink-muted",
   accent: "bg-accent/15 text-accent",

@@ -1,5 +1,5 @@
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "../components/ui/icons";
 import { getErrorMessage } from "../api/client";
 import { useMyOrder } from "../hooks/useOrders";
 import { formatPrice } from "../lib/format";
@@ -9,17 +9,6 @@ import { ButtonLink } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
 
-/**
- * One of the customer's own orders: items, totals, delivery address, status timeline.
- *
- * The demo "advance status" and "cancel" buttons that used to live here are **gone**. Status
- * transitions are now driven by the admin panel (and, from Phase 4, a Stripe webhook) — which is how
- * it works in reality. A customer moving their own order to SHIPPED was only ever a stand-in for a
- * missing backend.
- *
- * The server scopes this lookup to the authenticated user, so another customer's reference returns
- * 404 rather than their data.
- */
 export default function OrderDetailPage() {
   const { reference } = useParams<{ reference: string }>();
   const { data: order, isPending, error } = useMyOrder(reference);
@@ -76,7 +65,6 @@ export default function OrderDetailPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="flex flex-col gap-6">
-          {/* ---- Items ---- */}
           <div className="overflow-hidden rounded-card bg-surface ring-1 ring-line">
             <h2 className="border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-widest text-ink-faint">
               Items
@@ -92,9 +80,6 @@ export default function OrderDetailPage() {
                     />
                   )}
                   <div className="min-w-0 flex-1">
-                    {/* Links to the live product only when it still exists — `productId` is null
-                        once a product is deleted. The name and price shown are always the order's
-                        snapshot, so a repriced product cannot rewrite this receipt. */}
                     {item.productId ? (
                       <Link
                         to={`/product/${item.productId}`}
@@ -119,7 +104,6 @@ export default function OrderDetailPage() {
             </ul>
           </div>
 
-          {/* ---- Timeline ---- */}
           <div className="rounded-card bg-surface p-5 ring-1 ring-line">
             <h2 className="mb-5 text-xs font-bold uppercase tracking-widest text-ink-faint">
               Progress
@@ -128,7 +112,6 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* ---- Sidebar ---- */}
         <aside className="flex flex-col gap-4">
           <div className="rounded-card bg-surface p-5 ring-1 ring-line">
             <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Total</h2>

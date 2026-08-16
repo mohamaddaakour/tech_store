@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AnimatePresence, motion } from "motion/react";
-import { ChevronLeft, ChevronRight, Search, SlidersHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, SlidersHorizontal } from "../components/ui/icons";
 import { getErrorMessage } from "../api/client";
 import { useBrands, useCategories, useProductMeta, useProductSearch } from "../hooks/useProducts";
 import { pluralize } from "../lib/format";
@@ -21,21 +20,6 @@ const SORT_OPTIONS = [
   { value: "stock-desc", label: "Most in stock" },
 ] as const;
 
-/**
- * The Store — browse the catalogue with search, filtering, sorting and pagination.
- *
- * ## Filtering now happens on the server
- *
- * This page used to download every product and narrow the list in JavaScript. It now sends the
- * filters to `GET /api/products` as query parameters and renders whatever page comes back. That is
- * the difference between a page that works with 14 products and one that works with 14,000.
- *
- * ## Filter state lives in the URL
- *
- * Every control writes to the query string via `useSearchParams`, never to `useState`. That buys a
- * shareable link for any filtered view, working Back/Forward through filter changes, and lets the
- * dashboard's brand strip deep-link here with `?brand=asus`.
- */
 export default function StorePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -44,7 +28,6 @@ export default function StorePage() {
   const { data: brands } = useBrands();
   const { data: meta } = useProductMeta();
 
-  // ---- Read state out of the URL ----
   const query = searchParams.get("q") ?? "";
   const sort = searchParams.get("sort") ?? "newest";
   const page = Math.max(1, Number(searchParams.get("page") ?? 1));
@@ -56,12 +39,6 @@ export default function StorePage() {
   const maxPriceParam = searchParams.get("maxPrice");
   const maxPriceCents = maxPriceParam ? Number(maxPriceParam) : priceCeilingCents;
 
-  /**
-   * The request. Only non-default values are sent, so the backend receives a clean query and each
-   * distinct filter combination gets its own cache entry.
-   *
-   * `page - 1` because the URL is 1-based for humans while the API is 0-based.
-   */
   const { data, isPending, isFetching, error, refetch } = useProductSearch({
     ...(query ? { search: query } : {}),
     ...(categorySlug ? { category: categorySlug } : {}),
@@ -73,7 +50,6 @@ export default function StorePage() {
     size: PAGE_SIZE,
   });
 
-  /** Writes params, dropping any that are empty or at their default. */
   function updateParams(patch: Record<string, string | number | boolean | null>) {
     const next = new URLSearchParams(searchParams);
 
@@ -82,17 +58,12 @@ export default function StorePage() {
       else next.set(key, String(value));
     }
 
-    // Any filter change invalidates the page number — page 3 of the old result set is very likely
-    // past the end of the new one.
     if (!("page" in patch)) next.delete("page");
 
-    // `replace` so filter tweaks do not each add a history entry; one Back press should leave the
-    // store, not undo twelve slider nudges.
     setSearchParams(next, { replace: true });
   }
 
   function resetFilters() {
-    // Preserve the search term: clearing *filters* should not wipe what the user typed.
     setSearchParams(query ? { q: query } : {}, { replace: true });
   }
 
@@ -122,7 +93,7 @@ export default function StorePage() {
   const filterPanel = (
     <FilterPanel
       values={{ brand: brandSlug, category: categorySlug, maxPriceCents, inStockOnly }}
-      // Facets come from the API now, not from guessing at product names.
+
       brands={brands ?? []}
       categories={categories ?? []}
       priceCeilingCents={priceCeilingCents}
@@ -134,7 +105,6 @@ export default function StorePage() {
           ...("inStockOnly" in patch ? { inStock: patch.inStockOnly ? "1" : null } : {}),
           ...("maxPriceCents" in patch
             ? {
-                // Omit the price when it is at the ceiling: that is not a filter.
                 maxPrice:
                   patch.maxPriceCents === priceCeilingCents ? null : (patch.maxPriceCents ?? null),
               }
@@ -205,21 +175,14 @@ export default function StorePage() {
         </aside>
 
         <div className="min-w-0 flex-1">
-          <AnimatePresence>
-            {showMobileFilters && (
-              <motion.div
-                // motion can animate `height: auto` because it measures the element; plain CSS
-                // cannot transition to `auto`.
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.25, ease: [0.25, 1, 0.5, 1] }}
-                className="mb-4 overflow-hidden lg:hidden"
-              >
-                <div className="rounded-card bg-surface p-4 ring-1 ring-line">{filterPanel}</div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <div
+            style={{ gridTemplateRows: showMobileFilters ? "1fr" : "0fr" }}
+            className="mb-4 grid transition-[grid-template-rows] duration-300 ease-out lg:hidden"
+          >
+            <div className="overflow-hidden">
+              <div className="rounded-card bg-surface p-4 ring-1 ring-line">{filterPanel}</div>
+            </div>
+          </div>
 
           {isPending ? (
             <div aria-busy="true" aria-label="Loading products">
@@ -242,9 +205,6 @@ export default function StorePage() {
             />
           ) : (
             <>
-              {/* Dim slightly while a new page is in flight. `placeholderData` in the hook keeps the
-                  old results visible, so this is the only cue that something is loading — better
-                  than replacing the grid with skeletons on every page change. */}
               <div className={isFetching ? "opacity-60 transition-opacity" : undefined}>
                 <ProductGrid products={data.content} />
               </div>

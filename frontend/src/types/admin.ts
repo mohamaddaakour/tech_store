@@ -1,7 +1,6 @@
 import type { OrderStatus } from "./order";
 import type { Role } from "./auth";
 
-/** Mirrors the backend's `DashboardResponse`. */
 export interface Dashboard {
   kpis: Kpis;
   salesTrend: SalesPoint[];
@@ -12,10 +11,9 @@ export interface Dashboard {
 }
 
 export interface Kpis {
-  /** Lifetime revenue from PAID/SHIPPED/DELIVERED orders only — PENDING is not money yet. */
   revenueCents: number;
   revenueLast30dCents: number;
-  /** Computed server-side so the UI cannot divide by zero on a fresh install. */
+
   averageOrderCents: number;
   orderCount: number;
   ordersLast30d: number;
@@ -28,14 +26,12 @@ export interface Kpis {
 }
 
 export interface SalesPoint {
-  /** ISO date, `YYYY-MM-DD`. Zero-filled by the server for days with no orders. */
   date: string;
   orders: number;
   revenueCents: number;
 }
 
 export interface TopProduct {
-  /** Null if the product was deleted after selling. */
   productId: number | null;
   name: string;
   unitsSold: number;
@@ -62,7 +58,6 @@ export interface RecentOrder {
   createdAt: string;
 }
 
-/** Mirrors `AdminUserService.AdminUserResponse`. No password hash — ever. */
 export interface AdminUser {
   id: number;
   email: string;
@@ -70,12 +65,6 @@ export interface AdminUser {
   createdAt: string;
 }
 
-/**
- * Body for creating or updating a product.
- *
- * Mirrors the backend's `ProductRequest`: only fields a client may set. No `id`, `createdAt` or
- * `version`.
- */
 export interface ProductInput {
   name: string;
   description: string;

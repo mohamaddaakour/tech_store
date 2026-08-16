@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import toast from "react-hot-toast";
+import { ChevronLeft, ChevronRight, Pencil, Plus, Search, Trash2 } from "../../components/ui/icons";
+import { toast } from "../../store/toastStore";
 import { getErrorMessage } from "../../api/client";
 import { useAdminProducts, useDeleteProduct } from "../../hooks/useAdmin";
 import { formatPrice, pluralize } from "../../lib/format";
@@ -12,18 +12,12 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { Modal } from "../../components/ui/Modal";
 import { Skeleton } from "../../components/ui/Skeleton";
 
-/**
- * Product management: list, create, edit, delete (SUBJECT.md Phase 6).
- *
- * Sold-out products are deliberately included — those are exactly the rows an admin needs to act on,
- * so unlike the storefront this list does not filter by availability.
- */
 export default function AdminProductsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Product | undefined>();
   const [isFormOpen, setFormOpen] = useState(false);
-  /** The product queued for deletion — also drives the confirmation modal. */
+
   const [pendingDelete, setPendingDelete] = useState<Product | undefined>();
 
   const { data, isPending, error, refetch, isFetching } = useAdminProducts({
@@ -73,7 +67,6 @@ export default function AdminProductsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ---- Toolbar ---- */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[12rem] flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
@@ -81,8 +74,7 @@ export default function AdminProductsPage() {
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
-              // Reset to the first page: page 3 of the old results is very likely past the end
-              // of the new ones.
+
               setPage(0);
             }}
             placeholder="Search products…"
@@ -100,9 +92,6 @@ export default function AdminProductsPage() {
         {isPending ? "Loading…" : pluralize(data?.totalElements ?? 0, "product")}
       </p>
 
-      {/* ---- Table ----
-          `overflow-x-auto` so the table scrolls horizontally on a narrow screen rather than
-          forcing the whole page sideways. */}
       <div className="overflow-hidden rounded-card bg-surface ring-1 ring-line">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[42rem] text-left">
@@ -150,7 +139,6 @@ export default function AdminProductsPage() {
                         {formatPrice(product.priceCents)}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {/* Colour-coded, so a scan down the column shows what needs restocking. */}
                         {product.stock === 0 ? (
                           <Badge tone="danger">Sold out</Badge>
                         ) : product.stock <= 5 ? (
@@ -190,7 +178,6 @@ export default function AdminProductsPage() {
         )}
       </div>
 
-      {/* ---- Pagination ---- */}
       {(data?.totalPages ?? 1) > 1 && (
         <nav aria-label="Pagination" className="flex items-center justify-center gap-2">
           <Button
@@ -217,8 +204,6 @@ export default function AdminProductsPage() {
         </nav>
       )}
 
-      {/* Keyed by the product being edited, so the form remounts and reloads its defaults when the
-          selection changes. `useForm` reads defaultValues only on mount. */}
       <ProductFormModal
         key={editing?.id ?? "new"}
         open={isFormOpen}
@@ -226,10 +211,6 @@ export default function AdminProductsPage() {
         product={editing}
       />
 
-      {/* ---- Delete confirmation ----
-          Deletion is irreversible, so it gets an explicit confirm rather than firing on the first
-          click. The message states what survives, because "will this wipe my sales history?" is the
-          reasonable worry. */}
       <Modal
         open={Boolean(pendingDelete)}
         onClose={() => setPendingDelete(undefined)}

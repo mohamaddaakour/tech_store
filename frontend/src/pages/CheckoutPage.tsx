@@ -1,11 +1,8 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useNavigate } from "react-router-dom";
-import { AnimatePresence, motion } from "motion/react";
-import { Check, CreditCard, MapPin, Receipt } from "lucide-react";
-import toast from "react-hot-toast";
+import { Check, CreditCard, MapPin, Receipt } from "../components/ui/icons";
+import { toast } from "../store/toastStore";
 import { getErrorMessage } from "../api/client";
 import { useCartStore } from "../store/cartStore";
 import { usePlaceOrder } from "../hooks/useOrders";
@@ -15,9 +12,6 @@ import { Input } from "../components/ui/Input";
 import { EmptyState } from "../components/ui/EmptyState";
 import { cn } from "../lib/cn";
 
-/**
- * Address validation. Deliberately light — over-strict address rules reject real addresses.
- */
 const addressSchema = z.object({
   fullName: z.string().min(2, "Enter the recipient's name"),
   line1: z.string().min(4, "Enter a street address"),
@@ -36,27 +30,9 @@ const STEPS = [
 
 type StepId = (typeof STEPS)[number]["id"];
 
-/** Delivery pricing, mirroring the server's rule so the preview matches the charge. */
 const SHIPPING_FLAT_CENTS = 1499;
 const FREE_SHIPPING_THRESHOLD_CENTS = 50_000;
 
-/**
- * Multi-step checkout.
- *
- * ## Now backed by the real API
- *
- * Placing an order used to write to `localStorage`. It now POSTs to `/api/orders`, where the server
- * looks up every price, locks the product rows with `SELECT … FOR UPDATE`, verifies stock, and
- * decrements it inside one transaction. Two things follow from that:
- *
- * - **Only ids and quantities are sent.** Prices come from the database. A client-supplied price is
- *   how you end up selling laptops for a cent.
- * - **Checkout can now legitimately fail.** "Only 2 left" is a real 400 from the server, so the
- *   review step surfaces the error rather than assuming success.
- *
- * Payment remains a labelled placeholder: Stripe is SUBJECT.md Phase 4. The step collects nothing
- * and says so, rather than presenting card fields that silently discard what you type.
- */
 export default function CheckoutPage() {
   const lines = useCartStore((state) => state.lines);
   const subtotalCents = useCartStore((state) => state.totalCents());
@@ -69,22 +45,32 @@ export default function CheckoutPage() {
   const [step, setStep] = useState<StepId>("address");
   const [address, setAddress] = useState<AddressValues | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<AddressValues>({
-    resolver: zodResolver(addressSchema),
-    mode: "onBlur",
-    defaultValues: { country: "United Kingdom" },
+  const [addressValues, setAddressValues] = useState<AddressValues>({
+    fullName: "",
+    line1: "",
+    city: "",
+    postalCode: "",
+    country: "United Kingdom",
   });
+  const [errors, setErrors] = useState<Partial<Record<keyof AddressValues, string>>>({});
+
+  function updateAddressField(field: keyof AddressValues, value: string) {
+    setAddressValues((current) => ({ ...current, [field]: value }));
+  }
+
+  function validateAddressField(field: keyof AddressValues) {
+    const result = addressSchema.shape[field].safeParse(addressValues[field]);
+    setErrors((current) => ({
+      ...current,
+      [field]: result.success ? undefined : result.error.issues[0]?.message,
+    }));
+  }
 
   const shippingCents =
     subtotalCents >= FREE_SHIPPING_THRESHOLD_CENTS ? 0 : SHIPPING_FLAT_CENTS;
   const totalCents = subtotalCents + shippingCents;
   const currentStepIndex = STEPS.findIndex((entry) => entry.id === step);
 
-  // Guard here rather than hiding the route, so a stale bookmark degrades gracefully.
   if (lines.length === 0) {
     return (
       <EmptyState
@@ -100,8 +86,21 @@ export default function CheckoutPage() {
     );
   }
 
-  function submitAddress(values: AddressValues) {
-    setAddress(values);
+  function submitAddress(event: React.FormEvent) {
+    event.preventDefault();
+
+    const result = addressSchema.safeParse(addressValues);
+    if (!result.success) {
+      const fieldErrors: Partial<Record<keyof AddressValues, string>> = {};
+      for (const issue of result.error.issues) {
+        const field = issue.path[0] as keyof AddressValues;
+        fieldErrors[field] ??= issue.message;
+      }
+      setErrors(fieldErrors);
+      return;
+    }
+
+    setAddress(result.data);
     setStep("payment");
   }
 
@@ -110,14 +109,11 @@ export default function CheckoutPage() {
 
     placeOrder.mutate(
       {
-        // Ids and quantities only — the server prices the order.
         items: lines.map((line) => ({ productId: line.product.id, quantity: line.quantity })),
         address,
       },
       {
         onSuccess: (order) => {
-          // Clear the cart only after the server confirms. Clearing optimistically would lose the
-          // cart if checkout failed on a stock conflict.
           clearCart();
           toast.success(`Order ${order.reference} placed`);
           navigate(`/orders/${order.reference}`, { replace: true });
@@ -135,7 +131,6 @@ export default function CheckoutPage() {
         </p>
       </div>
 
-      {/* ================= STEP INDICATOR ================= */}
       <ol className="flex items-center gap-2">
         {STEPS.map((entry, index) => {
           const isDone = index < currentStepIndex;
@@ -152,7 +147,6 @@ export default function CheckoutPage() {
                     !isDone && !isCurrent && "bg-surface-2 text-ink-faint ring-1 ring-line",
                   )}
                 >
-                  {/* A tick for completed steps rather than the number — reads as "done" instantly. */}
                   {isDone ? <Check className="size-4" /> : <entry.icon className="size-4" />}
                 </span>
                 <span
@@ -167,11 +161,9 @@ export default function CheckoutPage() {
 
               {index < STEPS.length - 1 && (
                 <div className="h-px flex-1 bg-line">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: isDone ? "100%" : "0%" }}
-                    transition={{ duration: 0.4, ease: [0.25, 1, 0.5, 1] }}
-                    className="h-full bg-accent"
+                  <div
+                    style={{ width: isDone ? "100%" : "0%" }}
+                    className="h-full bg-accent transition-[width] duration-400 ease-out"
                   />
                 </div>
               )}
@@ -182,33 +174,53 @@ export default function CheckoutPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="rounded-card bg-surface p-5 ring-1 ring-line sm:p-6">
-          {/* `mode="wait"` holds the incoming step until the outgoing one has left, so the panel
-              height does not jump with both mounted at once. */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={step}
-              initial={{ opacity: 0, x: 24 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -24 }}
-              transition={{ duration: 0.25, ease: [0.25, 1, 0.5, 1] }}
-            >
-              {/* ---- 1. Address ---- */}
+          <div key={step} className="animate-fade-in">
               {step === "address" && (
-                <form onSubmit={handleSubmit(submitAddress)} className="flex flex-col gap-4" noValidate>
+                <form onSubmit={submitAddress} className="flex flex-col gap-4" noValidate>
                   <h2 className="text-sm font-bold text-ink">Delivery address</h2>
 
-                  <Input label="Full name" autoComplete="name" {...register("fullName")}
-                         error={errors.fullName?.message} />
-                  <Input label="Street address" autoComplete="address-line1" {...register("line1")}
-                         error={errors.line1?.message} />
+                  <Input
+                    label="Full name"
+                    autoComplete="name"
+                    value={addressValues.fullName}
+                    onChange={(event) => updateAddressField("fullName", event.target.value)}
+                    onBlur={() => validateAddressField("fullName")}
+                    error={errors.fullName}
+                  />
+                  <Input
+                    label="Street address"
+                    autoComplete="address-line1"
+                    value={addressValues.line1}
+                    onChange={(event) => updateAddressField("line1", event.target.value)}
+                    onBlur={() => validateAddressField("line1")}
+                    error={errors.line1}
+                  />
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Input label="City" autoComplete="address-level2" {...register("city")}
-                           error={errors.city?.message} />
-                    <Input label="Postal code" autoComplete="postal-code" {...register("postalCode")}
-                           error={errors.postalCode?.message} />
+                    <Input
+                      label="City"
+                      autoComplete="address-level2"
+                      value={addressValues.city}
+                      onChange={(event) => updateAddressField("city", event.target.value)}
+                      onBlur={() => validateAddressField("city")}
+                      error={errors.city}
+                    />
+                    <Input
+                      label="Postal code"
+                      autoComplete="postal-code"
+                      value={addressValues.postalCode}
+                      onChange={(event) => updateAddressField("postalCode", event.target.value)}
+                      onBlur={() => validateAddressField("postalCode")}
+                      error={errors.postalCode}
+                    />
                   </div>
-                  <Input label="Country" autoComplete="country-name" {...register("country")}
-                         error={errors.country?.message} />
+                  <Input
+                    label="Country"
+                    autoComplete="country-name"
+                    value={addressValues.country}
+                    onChange={(event) => updateAddressField("country", event.target.value)}
+                    onBlur={() => validateAddressField("country")}
+                    error={errors.country}
+                  />
 
                   <Button type="submit" fullWidth>
                     Continue to payment
@@ -216,13 +228,10 @@ export default function CheckoutPage() {
                 </form>
               )}
 
-              {/* ---- 2. Payment ---- */}
               {step === "payment" && (
                 <div className="flex flex-col gap-4">
                   <h2 className="text-sm font-bold text-ink">Payment</h2>
 
-                  {/* No fake card inputs. A form that looks like it takes card details but discards
-                      them trains users into exactly the habit phishing relies on. */}
                   <div className="rounded-control bg-info-soft p-4">
                     <p className="text-xs font-semibold text-info">Stripe arrives in Phase 4</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-info/90">
@@ -244,7 +253,6 @@ export default function CheckoutPage() {
                 </div>
               )}
 
-              {/* ---- 3. Review ---- */}
               {step === "review" && address && (
                 <div className="flex flex-col gap-5">
                   <h2 className="text-sm font-bold text-ink">Review your order</h2>
@@ -281,9 +289,6 @@ export default function CheckoutPage() {
                     ))}
                   </ul>
 
-                  {/* Checkout can genuinely fail now — most likely because someone else bought the
-                      last unit while this cart sat open. Showing the server's specific message
-                      ("X has only 2 in stock") is far more useful than a generic failure. */}
                   {placeOrder.error && (
                     <p role="alert"
                        className="rounded-control bg-danger-soft px-3 py-2 text-xs text-danger animate-fade-in">
@@ -301,11 +306,9 @@ export default function CheckoutPage() {
                   </div>
                 </div>
               )}
-            </motion.div>
-          </AnimatePresence>
+          </div>
         </div>
 
-        {/* ================= SUMMARY ================= */}
         <aside className="lg:sticky lg:top-24 lg:self-start">
           <div className="rounded-card bg-surface p-5 ring-1 ring-line">
             <h2 className="text-sm font-bold text-ink">Summary</h2>

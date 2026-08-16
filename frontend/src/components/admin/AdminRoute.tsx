@@ -1,27 +1,9 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "../ui/icons";
 import { useAuthStore } from "../../store/authStore";
 import { ButtonLink } from "../ui/Button";
 import { Spinner } from "../ui/Spinner";
 
-/**
- * Route guard for the admin panel.
- *
- * Three outcomes, and the distinction between the last two matters:
- *
- * - **Still restoring** — the startup token refresh has not answered. Render a spinner and decide
- *   nothing, or an admin who reloaded `/admin` would be bounced out a fraction of a second before
- *   their session came back.
- * - **Not signed in** — redirect to login, remembering where they were headed.
- * - **Signed in but not an ADMIN** — show a "no permission" screen rather than redirecting to login.
- *   Sending them to a login form would be misleading: they *are* logged in, and logging in again
- *   would change nothing.
- *
- * <p><strong>This is not a security boundary.</strong> It only decides what to render. The backend
- * enforces `hasRole("ADMIN")` on every `/api/admin/**` route independently, which is what actually
- * protects the data — anyone can edit `role` in client-side state via devtools, and doing so here
- * would produce a panel full of 403s and nothing else.
- */
 export function AdminRoute() {
   const user = useAuthStore((state) => state.user);
   const isRestoring = useAuthStore((state) => state.isRestoring);

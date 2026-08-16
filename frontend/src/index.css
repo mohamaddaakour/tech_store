@@ -1,47 +1,28 @@
 @import "tailwindcss";
 
-/* ============================================================================
-   TECHSTORE DESIGN SYSTEM
-   ----------------------------------------------------------------------------
-   A console-dashboard aesthetic: deep blacks, a green accent, glass panels,
-   layered gradients and soft glows.
-
-   Tailwind v4 note: variables declared in `@theme` GENERATE utility classes.
-   `--color-surface` gives you `bg-surface` / `text-surface` / `ring-surface`.
-   Crucially, those utilities compile to `var(--color-surface)` rather than a
-   baked-in hex value — which is what makes runtime theme switching work: we
-   just redefine the variables further down under `[data-theme="light"]`.
-
-   So: always write `bg-surface`, never `bg-[#141519]`.
-   ============================================================================ */
 @theme {
-  /* --- Surfaces (DARK is the default; this is a console UI) ---------------- */
-  --color-bg: #08090b;          /* the void behind everything */
-  --color-bg-soft: #0d0f13;     /* large panel backdrops */
-  --color-surface: #14161b;     /* tiles, cards, inputs */
-  --color-surface-2: #1c1f26;   /* hover */
-  --color-surface-3: #262a33;   /* pressed, skeleton shimmer */
 
-  /* --- Borders: very low contrast. Solid greys read as harsh on dark. ----- */
+  --color-bg: #08090b;
+  --color-bg-soft: #0d0f13;
+  --color-surface: #14161b;
+  --color-surface-2: #1c1f26;
+  --color-surface-3: #262a33;
+
   --color-line: #23262e;
   --color-line-strong: #363b46;
 
-  /* --- Text: exactly three levels. More and hierarchy stops meaning anything. */
   --color-ink: #f2f4f7;
   --color-ink-muted: #9ba3b2;
   --color-ink-faint: #646c7a;
 
-  /* --- Accent -------------------------------------------------------------- */
   --color-accent: #3ddc84;
   --color-accent-hover: #5ceb9c;
   --color-accent-press: #2bc670;
-  /* Text ON the accent. Near-black, not white: white on this green fails
-     contrast, dark text passes comfortably. */
+
   --color-accent-ink: #04130a;
-  /* A second hue for gradients, so glows have depth instead of being flat green. */
+
   --color-accent-alt: #24c8d8;
 
-  /* --- Status -------------------------------------------------------------- */
   --color-danger: #f4666f;
   --color-danger-soft: #2b1418;
   --color-warn: #f5b545;
@@ -51,21 +32,14 @@
   --color-info: #63b3ff;
   --color-info-soft: #0f1c2b;
 
-  /* --- Radii: one step per component size --------------------------------- */
   --radius-control: 0.625rem;
   --radius-card: 1rem;
   --radius-tile: 1.25rem;
   --radius-panel: 1.5rem;
 
-  /* --- Motion -------------------------------------------------------------
-     The easing curve matters more than the duration. `ease-out`-shaped curves
-     (fast start, gentle stop) feel responsive because the element reacts the
-     instant you input. A symmetric ease-in-out on a hover feels sluggish.
-     ------------------------------------------------------------------------ */
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  /* --- Animations, exposed as `animate-*` utilities ----------------------- */
   --animate-fade-in: fade-in 0.3s var(--ease-out-quart) both;
   --animate-rise: rise 0.45s var(--ease-out-quart) both;
   --animate-shimmer: shimmer 1.5s linear infinite;
@@ -80,7 +54,6 @@
     to   { opacity: 1; }
   }
 
-  /* Rising while fading in reads as "arriving" rather than just "appearing". */
   @keyframes rise {
     from { opacity: 0; transform: translateY(14px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -95,7 +68,6 @@
     to { transform: rotate(360deg); }
   }
 
-  /* Ambient breathing for the background orbs. */
   @keyframes glow-pulse {
     0%, 100% { opacity: 0.35; transform: scale(1); }
     50%      { opacity: 0.6;  transform: scale(1.08); }
@@ -111,26 +83,12 @@
     50%      { background-position: 100% 50%; }
   }
 
-  /* A highlight sweeping across a focused tile. */
   @keyframes scan {
     0%        { transform: translateX(-120%); }
     60%, 100% { transform: translateX(220%); }
   }
 }
 
-/* ============================================================================
-   LIGHT THEME
-   ----------------------------------------------------------------------------
-   Only the variables change; not one utility class differs between themes.
-
-   `html[data-theme="light"]` rather than `[data-theme="light"]` so specificity
-   (0,1,1) clearly beats the `:root` (0,1,0) that `@theme` emits — no reliance
-   on source order.
-
-   This is a genuine light palette, not inverted greys: surfaces get *lighter*
-   as they come forward (the opposite of dark mode), and the accent is darkened
-   because #3ddc84 on white is unreadable.
-   ============================================================================ */
 html[data-theme="light"] {
   --color-bg: #f4f6f8;
   --color-bg-soft: #eef1f5;
@@ -161,14 +119,9 @@ html[data-theme="light"] {
   --color-info-soft: #e8f1fd;
 }
 
-/* ============================================================================
-   BASE
-   ============================================================================ */
-
 html {
   scroll-behavior: smooth;
-  /* Always reserve the scrollbar gutter, so locking scroll for a drawer does
-     not shift the entire page sideways by ~15px. */
+
   scrollbar-gutter: stable;
   color-scheme: dark;
 }
@@ -182,53 +135,36 @@ body {
   color: var(--color-ink);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
-  /* Transition the theme swap so toggling is a soft cross-fade, not a flash. */
+
   transition: background-color 0.4s var(--ease-out-quart), color 0.4s var(--ease-out-quart);
 }
 
-/* Keyboard navigation is a first-class requirement for this UI, so the focus
-   ring is loud on purpose. `:focus-visible` (not `:focus`) means mouse users do
-   not see a ring after every click. Never remove this without replacing it. */
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 3px;
   border-radius: 6px;
 }
 
-/* A dark page with a default light scrollbar looks unfinished. */
 * {
   scrollbar-color: var(--color-surface-3) transparent;
   scrollbar-width: thin;
 }
 
-/* Horizontal product rows scroll but should not show a bar — the row's own
-   arrow buttons and drag are the affordance. */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* ============================================================================
-   COMPOSED UTILITIES
-   ----------------------------------------------------------------------------
-   Recurring multi-property effects, named once. `@utility` is Tailwind v4's
-   way to register a custom utility so it composes with variants
-   (`hover:glow-accent`) exactly like a built-in.
-   ============================================================================ */
-
-/* Frosted glass: the signature surface of the console UI. */
 @utility glass {
   background-color: color-mix(in srgb, var(--color-surface) 62%, transparent);
   backdrop-filter: blur(20px) saturate(150%);
   border: 1px solid color-mix(in srgb, var(--color-line-strong) 55%, transparent);
 }
 
-/* A soft coloured bloom, for focused/selected tiles. */
 @utility glow-accent {
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent),
     0 8px 40px -8px color-mix(in srgb, var(--color-accent) 40%, transparent);
 }
 
-/* The animated accent gradient used on hero panels and headings. */
 @utility gradient-accent {
   background-image: linear-gradient(
     115deg,
@@ -239,29 +175,12 @@ body {
   background-size: 200% 200%;
 }
 
-/* Gradient text. `text-transparent` alone is not enough — the clip properties
-   are what let the background show through the glyphs. */
 @utility text-gradient {
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
 }
 
-/* ============================================================================
-   ACCESSIBILITY: MOTION
-   ----------------------------------------------------------------------------
-   Two independent switches, both required by SUBJECT.md:
-
-   1. `prefers-reduced-motion` — the OS-level setting. For people with
-      vestibular disorders, on-screen movement can cause real nausea, so this
-      is not a preference to second-guess.
-   2. `html.low-motion` — the in-app toggle in Settings, for someone who wants
-      calm without changing their whole OS.
-
-   Durations are near-zeroed rather than removed, because a 0.01ms animation
-   still fires its `animationend` event — so any JS waiting on that keeps
-   working instead of hanging forever.
-   ============================================================================ */
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
 
@@ -282,8 +201,6 @@ html.low-motion *::after {
   transition-duration: 0.01ms !important;
 }
 
-/* Ambient decoration is pure movement with no informational value, so the
-   calmest thing is to remove it entirely rather than freeze it mid-drift. */
 @media (prefers-reduced-motion: reduce) {
   .ambient-layer { display: none !important; }
 }

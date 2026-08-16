@@ -1,11 +1,10 @@
-import { X } from "lucide-react";
+import { X } from "../ui/icons";
 import type { Facet } from "../../types/product";
 import { formatPrice } from "../../lib/format";
 import { Button } from "../ui/Button";
 import { cn } from "../../lib/cn";
 
 export interface FilterValues {
-  /** Brand **slug**, not name — the API filters by slug and slugs are URL-safe. */
   brand: string;
   category: string;
   maxPriceCents: number;
@@ -16,23 +15,13 @@ interface FilterPanelProps {
   values: FilterValues;
   brands: Facet[];
   categories: Facet[];
-  /** Highest price in the catalogue, from `/api/products/meta`. */
+
   priceCeilingCents: number;
   activeCount: number;
   onChange: (patch: Partial<FilterValues>) => void;
   onReset: () => void;
 }
 
-/**
- * The catalogue filter sidebar.
- *
- * A controlled component: it holds no state of its own but renders `values` and reports changes
- * upward. The Store page keeps the real state in the URL, which is what makes a filtered view
- * shareable. If this component owned the state too, the two copies would drift.
- *
- * Facets now arrive from the API with real product counts, so a shopper can see there is no point
- * filtering to a brand with nothing in it.
- */
 export function FilterPanel({
   values,
   brands,
@@ -46,8 +35,6 @@ export function FilterPanel({
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-bold text-ink">Filters</h2>
-        {/* Appears only when there is something to reset — a permanent "Clear all" on an
-            unfiltered list is dead weight. */}
         {activeCount > 0 && (
           <Button variant="ghost" size="sm" onClick={onReset}>
             <X className="size-3.5" />
@@ -78,7 +65,7 @@ export function FilterPanel({
             type="range"
             min={0}
             max={priceCeilingCents}
-            // Step in whole dollars; cent precision on a price slider is meaningless to a shopper.
+
             step={100}
             value={values.maxPriceCents}
             onChange={(event) => onChange({ maxPriceCents: Number(event.target.value) })}
@@ -93,8 +80,6 @@ export function FilterPanel({
       </FilterGroup>
 
       <FilterGroup label="Availability">
-        {/* A real checkbox wrapped in a label, so clicking the text toggles it and screen readers
-            announce the checked state. A styled div listening for clicks gets neither. */}
         <label className="flex cursor-pointer items-center gap-2.5 text-xs text-ink-muted">
           <input
             type="checkbox"
@@ -109,7 +94,6 @@ export function FilterPanel({
   );
 }
 
-/** A labelled section. Extracted only to keep the spacing consistent. */
 function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-2.5">
@@ -119,14 +103,6 @@ function FilterGroup({ label, children }: { label: string; children: React.React
   );
 }
 
-/**
- * A row of single-select chips with an "All" option.
- *
- * Chips rather than a `<select>` because every option and its count is visible at a glance, and
- * selecting is one tap. A dropdown would hide five choices behind an extra interaction.
- *
- * The chip displays the facet **name** but reports its **slug**, which is what the API filters on.
- */
 function FacetChips({
   facets,
   selectedSlug,
@@ -138,7 +114,6 @@ function FacetChips({
 }) {
   return (
     <div className="flex flex-wrap gap-1.5">
-      {/* "" is the sentinel for "no filter", which keeps the URL clean (no `?brand=All`). */}
       <FacetChip label="All" isSelected={selectedSlug === ""} onClick={() => onSelect("")} />
 
       {facets.map((facet) => (

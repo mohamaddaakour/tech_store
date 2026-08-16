@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import toast from "react-hot-toast";
-import { Moon, Sun, Zap } from "lucide-react";
+import { toast } from "../store/toastStore";
+import { Moon, Sun, Zap } from "../components/ui/icons";
 import { useUiStore } from "../store/uiStore";
 import { useAuthStore } from "../store/authStore";
 import { useCartStore } from "../store/cartStore";
@@ -10,14 +10,6 @@ import { Badge } from "../components/ui/Badge";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { cn } from "../lib/cn";
 
-/**
- * Settings — account, appearance, motion, and local data.
- *
- * The motion toggle here is the "low-motion mode" SUBJECT.md requires alongside
- * `prefers-reduced-motion`. Both matter: the OS setting is the right default, but
- * someone may want a calm interface in this one app without changing their whole
- * system, and someone else may want animations here despite a system-wide preference.
- */
 export default function SettingsPage() {
   const theme = useUiStore((state) => state.theme);
   const setTheme = useUiStore((state) => state.setTheme);
@@ -33,13 +25,6 @@ export default function SettingsPage() {
   const recentCount = useRecentlyViewedStore((state) => state.ids.length);
   const clearRecent = useRecentlyViewedStore((state) => state.clear);
 
-  /**
-   * Orders are no longer listed here.
-   *
-   * They now live in the database, so they are not "local data" this page can clear — and offering a
-   * button that appeared to delete order history would be actively misleading. Cart, collection and
-   * recently-viewed remain genuinely browser-local.
-   */
   function clearEverything() {
     clearCart();
     clearWishlist();
@@ -54,7 +39,6 @@ export default function SettingsPage() {
         <p className="mt-1 text-sm text-ink-muted">Account, appearance and stored data</p>
       </div>
 
-      {/* ---- Account ---- */}
       <SettingsSection title="Account">
         {user ? (
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -74,7 +58,6 @@ export default function SettingsPage() {
         )}
       </SettingsSection>
 
-      {/* ---- Appearance ---- */}
       <SettingsSection title="Appearance" hint="The console is designed dark; light is fully supported.">
         <div className="grid grid-cols-2 gap-3">
           {([
@@ -84,8 +67,7 @@ export default function SettingsPage() {
             <button
               key={option.value}
               onClick={() => setTheme(option.value)}
-              // `aria-pressed` is what tells a screen reader which of the two is
-              // active; the ring alone is invisible to it.
+
               aria-pressed={theme === option.value}
               className={cn(
                 "flex items-center gap-3 rounded-control p-3 text-left transition-all duration-200",
@@ -103,7 +85,6 @@ export default function SettingsPage() {
         </div>
       </SettingsSection>
 
-      {/* ---- Motion ---- */}
       <SettingsSection
         title="Motion"
         hint="Your system's reduce-motion setting is always respected; this is an extra switch just for TechStore."
@@ -119,9 +100,6 @@ export default function SettingsPage() {
             </span>
           </span>
 
-          {/* A real checkbox, visually hidden with `sr-only` and styled via `peer`.
-              This keeps full keyboard and screen-reader support — a div-based switch
-              has to reimplement both, usually badly. */}
           <span className="relative inline-flex shrink-0">
             <input
               type="checkbox"
@@ -135,7 +113,6 @@ export default function SettingsPage() {
         </label>
       </SettingsSection>
 
-      {/* ---- Local data ---- */}
       <SettingsSection
         title="Stored data"
         hint="Cart, collection and recently viewed live in this browser's localStorage. Orders are stored on the server against your account."
@@ -163,7 +140,6 @@ export default function SettingsPage() {
   );
 }
 
-/** A titled card. Extracted so every section shares identical padding and spacing. */
 function SettingsSection({
   title,
   hint,

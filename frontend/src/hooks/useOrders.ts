@@ -18,13 +18,6 @@ export const orderKeys = {
   adminDetail: (reference: string) => ["orders", "admin", reference] as const,
 };
 
-/**
- * The caller's own order history.
- *
- * `options.enabled` lets a caller skip the request when there is no signed-in user. Without that
- * escape hatch, the dashboard would fire an unauthenticated request on every visit by a guest — a
- * guaranteed 401 that also triggers a pointless token-refresh attempt.
- */
 export function useMyOrders(page = 0, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: orderKeys.mine(page),
@@ -41,14 +34,6 @@ export function useMyOrder(reference: string | undefined) {
   });
 }
 
-/**
- * Checkout.
- *
- * The invalidations afterwards are the important part. A successful order changes three things the
- * cache already holds: the user's order list, product stock levels, and the admin dashboard's
- * figures. Marking them stale means those views refetch instead of showing pre-purchase numbers —
- * without this, the product page would still claim the old stock count.
- */
 export function usePlaceOrder() {
   const queryClient = useQueryClient();
 
@@ -56,14 +41,12 @@ export function usePlaceOrder() {
     mutationFn: placeOrder,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orderKeys.all });
-      // Prefix match: invalidates every product query — list, search and detail alike.
+
       queryClient.invalidateQueries({ queryKey: productKeys.all });
       queryClient.invalidateQueries({ queryKey: ["admin"] });
     },
   });
 }
-
-// ---------------------------------------------------------------------------- admin
 
 export function useAdminOrders(status: OrderStatus | "", page = 0) {
   return useQuery({
@@ -81,7 +64,6 @@ export function useAdminOrder(reference: string | undefined) {
   });
 }
 
-/** Advances an order's status, then refreshes anything whose numbers just changed. */
 export function useUpdateOrderStatus() {
   const queryClient = useQueryClient();
 
@@ -90,8 +72,7 @@ export function useUpdateOrderStatus() {
       updateOrderStatus(reference, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orderKeys.all });
-      // A status change moves an order in or out of the revenue statuses, so every dashboard figure
-      // is potentially stale.
+
       queryClient.invalidateQueries({ queryKey: ["admin"] });
     },
   });

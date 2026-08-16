@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
-import toast from "react-hot-toast";
+import { ArrowLeft } from "../../components/ui/icons";
+import { toast } from "../../store/toastStore";
 import { getErrorMessage } from "../../api/client";
 import { useAdminOrder, useUpdateOrderStatus } from "../../hooks/useOrders";
 import { formatPrice } from "../../lib/format";
@@ -12,19 +12,6 @@ import { Button, ButtonLink } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
 
-/**
- * One order, with the controls to move it through its lifecycle.
- *
- * ## The transition buttons are driven by the server
- *
- * `order.allowedNextStatuses` comes from the backend's state machine, and the UI renders exactly
- * those. So an admin is never offered an invalid move — no button appears for "cancel a delivered
- * order", rather than the button existing and returning a 400.
- *
- * That is the right division: the server owns the rules because it must (anyone can call the API
- * directly), and the UI reflects them rather than reimplementing them. A second copy of the
- * transition table in TypeScript would eventually disagree with the Java one.
- */
 export default function AdminOrderDetailPage() {
   const { reference } = useParams<{ reference: string }>();
   const { data: order, isPending, error } = useAdminOrder(reference);
@@ -89,7 +76,6 @@ export default function AdminOrderDetailPage() {
         <OrderStatusBadge status={order.status} />
       </div>
 
-      {/* ---- Status controls ---- */}
       <div className="rounded-card bg-surface p-5 ring-1 ring-line">
         <h3 className="text-xs font-bold uppercase tracking-widest text-ink-faint">
           Update status
@@ -111,8 +97,7 @@ export default function AdminOrderDetailPage() {
                 <Button
                   key={next}
                   size="sm"
-                  // Cancelling is destructive, so it gets the danger treatment while the
-                  // forward step stays primary.
+
                   variant={next === "CANCELLED" ? "danger" : "primary"}
                   loading={updateStatus.isPending}
                   onClick={() => changeStatus(next)}
@@ -127,7 +112,6 @@ export default function AdminOrderDetailPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="flex flex-col gap-6">
-          {/* ---- Items ---- */}
           <div className="overflow-hidden rounded-card bg-surface ring-1 ring-line">
             <h3 className="border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-widest text-ink-faint">
               Items
@@ -167,7 +151,6 @@ export default function AdminOrderDetailPage() {
             </ul>
           </div>
 
-          {/* ---- Audit trail ---- */}
           <div className="rounded-card bg-surface p-5 ring-1 ring-line">
             <h3 className="mb-5 text-xs font-bold uppercase tracking-widest text-ink-faint">
               History

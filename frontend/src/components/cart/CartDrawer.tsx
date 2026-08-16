@@ -8,17 +8,6 @@ import { Drawer } from "../ui/Drawer";
 import { EmptyState } from "../ui/EmptyState";
 import { CartLineRow } from "./CartLineRow";
 
-/**
- * The slide-out cart.
- *
- * Reads its own open state from `uiStore` rather than taking props, because it is
- * opened from the top bar, the product page and a keyboard shortcut. Self-serving
- * from the store means adding a fourth trigger requires no changes here.
- *
- * The panel, backdrop, animation and accessibility wiring all live in
- * {@link Drawer}; each row lives in {@link CartLineRow}. What remains here is
- * only the cart's own logic: totals, the free-shipping nudge, and checkout.
- */
 export function CartDrawer() {
   const isOpen = useUiStore((state) => state.openPanel === "cart");
   const closePanel = useUiStore((state) => state.closePanel);
@@ -44,13 +33,10 @@ export function CartDrawer() {
       open={isOpen}
       onClose={closePanel}
       title={isEmpty ? "Your cart" : `Your cart · ${pluralize(totalItems, "item")}`}
-      // No footer when empty: a "Total: $0.00" bar under an empty-state
-      // illustration is pure clutter.
+
       footer={
         isEmpty ? undefined : (
           <div className="flex flex-col gap-3">
-            {/* Free-shipping nudge with a progress bar. A concrete "spend X more"
-                is far more effective than a static "free shipping over $500". */}
             {remainingForFreeShipping > 0 && (
               <div className="rounded-control bg-surface-2 p-3">
                 <p className="text-[11px] text-ink-muted">
@@ -64,8 +50,6 @@ export function CartDrawer() {
                   <div
                     className="h-full rounded-full gradient-accent transition-[width] duration-500 ease-out-quart"
                     style={{
-                      // Clamped so a large cart cannot render a bar wider than
-                      // its track.
                       width: `${Math.min(100, (subtotalCents / FREE_SHIPPING_THRESHOLD_CENTS) * 100)}%`,
                     }}
                   />
@@ -126,8 +110,6 @@ export function CartDrawer() {
           }
         />
       ) : (
-        // A real list, so assistive tech announces "list, 3 items" and lets the
-        // user jump between them.
         <ul className="divide-y divide-line">
           {lines.map((line) => (
             <CartLineRow key={line.product.id} line={line} />

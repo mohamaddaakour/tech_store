@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight } from "../../components/ui/icons";
 import { getErrorMessage } from "../../api/client";
 import { useAdminOrders } from "../../hooks/useOrders";
 import { formatPrice, pluralize } from "../../lib/format";
@@ -12,7 +12,6 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { cn } from "../../lib/cn";
 
-/** "" is the sentinel for "no filter" — the API rejects `?status=` as an invalid enum. */
 const STATUS_FILTERS: Array<{ value: OrderStatus | ""; label: string }> = [
   { value: "", label: "All" },
   { value: "PENDING", label: STATUS_LABELS.PENDING },
@@ -30,7 +29,6 @@ function formatDate(iso: string): string {
   });
 }
 
-/** Order management for staff — every customer's orders, filterable by status. */
 export default function AdminOrdersPage() {
   const [status, setStatus] = useState<OrderStatus | "">("");
   const [page, setPage] = useState(0);
@@ -56,7 +54,6 @@ export default function AdminOrdersPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ---- Status filter ---- */}
       <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1">
         {STATUS_FILTERS.map((filter) => (
           <button

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
-import toast from "react-hot-toast";
+import { Check, Pencil, Plus, Trash2, X } from "../../components/ui/icons";
+import { toast } from "../../store/toastStore";
 import { getErrorMessage } from "../../api/client";
 import {
   useCreateBrand,
@@ -17,12 +17,6 @@ import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Skeleton } from "../../components/ui/Skeleton";
 
-/**
- * Category and brand management (SUBJECT.md Phase 6).
- *
- * Two structurally identical panels, so they share one {@link FacetPanel} component rather than being
- * written twice. The mutations differ; the interaction does not.
- */
 export default function AdminCatalogPage() {
   const { data: categories, isPending: categoriesPending } = useCategories();
   const { data: brands, isPending: brandsPending } = useBrands();
@@ -100,7 +94,7 @@ export default function AdminCatalogPage() {
 
 interface FacetPanelProps {
   title: string;
-  /** Singular noun for the placeholder and messages, e.g. "category". */
+
   noun: string;
   facets: Facet[] | undefined;
   isPending: boolean;
@@ -110,13 +104,6 @@ interface FacetPanelProps {
   onDelete: (facet: Facet) => void;
 }
 
-/**
- * A managed list of facets with inline rename.
- *
- * Renaming happens in place rather than in a modal: it is a single field, and a dialog for one text
- * input is more ceremony than the task deserves. The slug is regenerated server-side from the new
- * name, so it never has to be edited by hand.
- */
 function FacetPanel({
   title,
   noun,
@@ -128,7 +115,7 @@ function FacetPanel({
   onDelete,
 }: FacetPanelProps) {
   const [newName, setNewName] = useState("");
-  /** The facet currently being renamed, plus its working value. */
+
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
 
@@ -148,8 +135,7 @@ function FacetPanel({
 
   function commitEdit() {
     const trimmed = editingName.trim();
-    // Skip the request entirely if nothing changed — no point in a round trip, and the server
-    // would reject a rename to the row's own existing name as a duplicate.
+
     if (editingId !== null && trimmed) onRename(editingId, trimmed);
     setEditingId(null);
   }
@@ -161,7 +147,6 @@ function FacetPanel({
         URL slugs are generated automatically from the name
       </p>
 
-      {/* ---- Add ---- */}
       <form onSubmit={submitNew} className="mt-4 flex gap-2">
         <input
           value={newName}
@@ -175,7 +160,6 @@ function FacetPanel({
         </Button>
       </form>
 
-      {/* ---- List ---- */}
       <ul className="mt-4 divide-y divide-line">
         {isPending
           ? Array.from({ length: 4 }).map((_, index) => (
@@ -190,8 +174,7 @@ function FacetPanel({
                     <input
                       value={editingName}
                       onChange={(event) => setEditingName(event.target.value)}
-                      // Enter commits, Escape abandons — the shortcuts anyone expects from an
-                      // inline editor.
+
                       onKeyDown={(event) => {
                         if (event.key === "Enter") commitEdit();
                         if (event.key === "Escape") setEditingId(null);
@@ -242,7 +225,6 @@ function FacetPanel({
             ))}
       </ul>
 
-      {/* Deleting is safe, and saying so removes the hesitation — the FK is ON DELETE SET NULL. */}
       <p className="mt-4 text-[10px] leading-relaxed text-ink-faint">
         Deleting a {noun} does not delete its products; they simply become unassigned.
       </p>
