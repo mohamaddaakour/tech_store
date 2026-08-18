@@ -3,57 +3,89 @@ import { persist } from "zustand/middleware";
 import type { Product } from "../types/product";
 
 export interface CartLine {
-    product: Product;
-    quantity: number;
+  product: Product;
+  quantity: number;
 }
 
-// cart state shape
 interface CartState {
-    lines: CartLine[];
-    add: (product: Product) => void;
-    remove: (productId: number) => void;
-    totalCents: () => number;
-    totalItems: () => number;
+  lines: CartLine[];
+
+  add: (product: Product) => void;
+
+  remove: (productId: number) => void;
+
+  increment: (productId: number) => void;
+
+  decrement: (productId: number) => void;
+
+  clear: () => void;
+
+  totalCents: () => number;
+  totalItems: () => number;
 }
 
-// `create` builds a store (a hook you can call from any component).
 export const useCartStore = create<CartState>()(
-    // `persist` is a middleware that wraps your store so its state automatically
-    // saves to (and loads from) localStorage.
-    persist(
+  persist(
+    (set, get) => ({
+      lines: [],
 
-        // `set` — updates state (like setState)
-        // `get` — reads the current state at call time (needed because closures would otherwise capture stale state)
-        (set, get) => ({
-            lines: [],
+      add: (product) =>
+        set((state) => {
+          const existing = state.lines.find((line) => line.product.id === product.id);
 
-            // Implement the add function
-            add: (product) =>
-                set((state) => {
-                    const existing = state.lines.find((l) => l.product.id === product.id);
+          if (existing) {
+            return {
+              lines: state.lines.map((line) =>
+                line.product.id === product.id
+                  ? { ...line, quantity: line.quantity + 1 }
+                  : line,
+              ),
+            };
+          }
 
-                    // If this product is already in the cart we just add one to the quantity
-                    if (existing) {
-                        return {
-                            lines: state.lines.map((l) =>
-                                l.product.id === product.id ? { ...l, quantity: l.quantity + 1 } : l
-                            ),
-                        };
-                    }
-
-                    // If the product is first time added to the cart the quantity will be 1
-                    return { lines: [...state.lines, { product, quantity: 1 }] };
-                }),
-
-            remove: (productId) =>
-                set((state) => ({ lines: state.lines.filter((l) => l.product.id !== productId) })),
-
-            totalCents: () => get().lines.reduce((sum, l) => sum + l.product.priceCents * l.quantity, 0),
-
-            totalItems: () => get().lines.reduce((sum, l) => sum + l.quantity, 0),
+          return { lines: [...state.lines, { product, quantity: 1 }] };
         }),
 
-        // The key in the local storage
-        { name: "techstore-cart" }
-    )
+      remove: (productId) =>
+        set((state) => ({
+          lines: state.lines.filter((line) => line.product.id !== productId),
+        })),
+
+      increment: (productId) =>
+        set((state) => ({
+          lines: state.lines.map((line) =>
+            line.product.id === productId
+              ? {
+                  ...line,
+
+                  quantity: Math.min(line.quantity + 1, line.product.stock),
+                }
+              : line,
+          ),
+        })),
+
+      decrement: (productId) =>
+        set((state) => ({
+          lines: state.lines
+            .map((line) =>
+              line.product.id === productId
+                ? { ...line, quantity: line.quantity - 1 }
+                : line,
+            )
+            .filter((line) => line.quantity > 0),
+        })),
+
+      clear: () => set({ lines: [] }),
+
+      totalCents: () =>
+        get().lines.reduce(
+          (total, line) => total + line.product.priceCents * line.quantity,
+          0,
+        ),
+
+      totalItems: () => get().lines.reduce((total, line) => total + line.quantity, 0),
+    }),
+
+    { name: "techstore-cart" },
+  ),
 );

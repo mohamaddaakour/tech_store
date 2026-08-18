@@ -1,0 +1,234 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Sparkles } from "../ui/icons";
+import { useUiStore } from "../../store/uiStore";
+import { useAllProducts } from "../../hooks/useProducts";
+import { brandOf, categoryOf } from "../../lib/catalog";
+import { formatPrice } from "../../lib/format";
+import { Badge } from "../ui/Badge";
+import { Button } from "../ui/Button";
+import { Drawer } from "../ui/Drawer";
+import type { Product } from "../../types/product";
+
+interface Message {
+  id: number;
+  role: "user" | "assistant";
+  text: string;
+
+  products?: Product[];
+}
+
+const SUGGESTIONS = [
+  "What laptops are under $1500?",
+  "Which product has the best GPU?",
+  "What is in stock right now?",
+  "Recommend something for programming",
+];
+
+function answer(question: string, products: Product[]): Message {
+  const text = question.toLowerCase();
+  const id = Date.now();
+
+  const priceMatch = text.match(/(?:under|below|less than|cheaper than)\s*\$?\s*(\d[\d,]*)/);
+  if (priceMatch) {
+    const limitCents = Number(priceMatch[1].replace(/,/g, "")) * 100;
+    const matches = products.filter((product) => product.priceCents <= limitCents);
+
+    return {
+      id,
+      role: "assistant",
+      text: matches.length
+        ? `I found ${matches.length} product${matches.length === 1 ? "" : "s"} at or below ${formatPrice(limitCents)}.`
+        : `Nothing in the catalogue is at or below ${formatPrice(limitCents)} right now. The cheapest option is ${formatPrice(Math.min(...products.map((p) => p.priceCents)))}.`,
+      products: matches,
+    };
+  }
+
+  if (/stock|available|availability/.test(text)) {
+    const inStock = products.filter((product) => product.inStock);
+    return {
+      id,
+      role: "assistant",
+      text: `${inStock.length} of ${products.length} products are in stock.`,
+      products: inStock,
+    };
+  }
+
+  if (/gpu|graphics|gaming|rtx/.test(text)) {
+    const gpuProducts = products.filter((product) =>
+      /rtx|gtx|graphics|gaming/i.test(`${product.name} ${product.description}`),
+    );
+    return {
+      id,
+      role: "assistant",
+      text: gpuProducts.length
+        ? "These have discrete graphics mentioned in their specifications:"
+        : "No product in the catalogue lists a discrete GPU.",
+      products: gpuProducts,
+    };
+  }
+
+  if (/programming|coding|develop|work|business/.test(text)) {
+    const laptops = products.filter((product) => categoryOf(product) === "Laptops");
+    return {
+      id,
+      role: "assistant",
+      text: laptops.length
+        ? "For development work I would look at these — prioritise RAM and screen quality:"
+        : "There are no laptops in the catalogue at the moment.",
+      products: laptops,
+    };
+  }
+
+  if (/cheapest|budget|least expensive/.test(text)) {
+    const cheapest = [...products].sort((a, b) => a.priceCents - b.priceCents)[0];
+    return {
+      id,
+      role: "assistant",
+      text: cheapest ? "The most affordable option is:" : "The catalogue is empty.",
+      products: cheapest ? [cheapest] : [],
+    };
+  }
+
+  return {
+    id,
+    role: "assistant",
+    text:
+      "I can answer questions about price, stock, and specifications. " +
+      `Here is everything in the catalogue (${products.length} products):`,
+    products,
+  };
+}
+
+export function AssistantPanel() {
+  const isOpen = useUiStore((state) => state.openPanel === "assistant");
+  const closePanel = useUiStore((state) => state.closePanel);
+
+  const { data: products } = useAllProducts();
+  const navigate = useNavigate();
+
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+
+  function ask(question: string) {
+    const trimmed = question.trim();
+    if (!trimmed || !products) return;
+
+    setMessages((current) => [
+      ...current,
+      { id: Date.now() - 1, role: "user", text: trimmed },
+      answer(trimmed, products),
+    ]);
+    setInput("");
+  }
+
+  function openProduct(productId: number) {
+    closePanel();
+    navigate(`/product/${productId}`);
+  }
+
+  return (
+    <Drawer open={isOpen} onClose={closePanel} title="Shopping assistant">
+      <div className="flex flex-col gap-4">
+        <div className="rounded-control bg-info-soft p-3">
+          <p className="text-[11px] leading-relaxed text-info">
+            Answers come from live catalogue data using rule-based matching. The
+            language-model version arrives with the Phase 7 backend — so it will never
+            invent a product that does not exist.
+          </p>
+        </div>
+
+        {messages.length === 0 ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-medium text-ink-muted">Try asking</p>
+            {SUGGESTIONS.map((suggestion) => (
+              <button
+                key={suggestion}
+                onClick={() => ask(suggestion)}
+                className="rounded-control bg-surface-2 px-3 py-2 text-left text-xs text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {messages.map((message) => (
+              <li
+                key={message.id}
+                className={message.role === "user" ? "flex justify-end" : "flex flex-col gap-2"}
+              >
+                <div
+                  className={
+                    message.role === "user"
+                      ? "max-w-[85%] rounded-control bg-accent px-3 py-2 text-xs text-accent-ink"
+                      : "flex items-start gap-2 text-xs leading-relaxed text-ink-muted"
+                  }
+                >
+                  {message.role === "assistant" && (
+                    <Sparkles className="mt-0.5 size-3.5 shrink-0 text-accent" />
+                  )}
+                  <span>{message.text}</span>
+                </div>
+
+                {message.products && message.products.length > 0 && (
+                  <ul className="flex flex-col gap-1.5">
+                    {message.products.map((product) => (
+                      <li key={product.id}>
+                        <button
+                          onClick={() => openProduct(product.id)}
+                          className="flex w-full items-center gap-2.5 rounded-control bg-surface-2 p-2 text-left transition-colors hover:bg-surface-3"
+                        >
+                          <img
+                            src={product.imageUrl}
+                            alt=""
+                            className="size-9 shrink-0 rounded object-cover"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[11px] font-medium text-ink">
+                              {product.name}
+                            </span>
+                            <span className="text-[10px] text-ink-faint">
+                              {brandOf(product)}
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-[11px] font-semibold tabular-nums text-ink">
+                            {formatPrice(product.priceCents)}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            ask(input);
+          }}
+          className="sticky bottom-0 flex gap-2 bg-surface pt-2"
+        >
+          <input
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            placeholder="Ask about a product…"
+            className="h-9 flex-1 rounded-control bg-surface-2 px-3 text-xs text-ink ring-1 ring-line outline-none focus:ring-2 focus:ring-accent"
+          />
+          <Button type="submit" size="sm" disabled={!input.trim()}>
+            Ask
+          </Button>
+        </form>
+
+        {messages.length > 0 && (
+          <Badge tone="neutral" className="self-start">
+            {messages.filter((m) => m.role === "user").length} question(s) this session
+          </Badge>
+        )}
+      </div>
+    </Drawer>
+  );
+}
