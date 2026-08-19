@@ -24,6 +24,7 @@ public class JwtService {
     // Derived once from app.jwt.secret, used for both signing and verifying
     private final SecretKey key;
 
+    // Access toke "time to live": how much the access token will stay alive
     @Getter
     private final Duration accessTokenTtl;
 
@@ -31,42 +32,48 @@ public class JwtService {
     private final Duration refreshTokenTtl;
 
     public JwtService(JwtProperties properties) {
+        // Turns your raw secret string (e.g. "my-super-secret-key...") into a SecretKey object the crypto library understands
         this.key = Keys.hmacShaKeyFor(properties.secret().getBytes(StandardCharsets.UTF_8));
+
         this.accessTokenTtl = properties.accessTokenTtl();
         this.refreshTokenTtl = properties.refreshTokenTtl();
     }
 
     public String issueAccessToken(User user) {
+        // build a short-lived token for this user
         return issue(user, TokenType.ACCESS, accessTokenTtl);
     }
 
     public String issueRefreshToken(User user) {
+        // build a long-lived token for this user
         return issue(user, TokenType.REFRESH, refreshTokenTtl);
     }
 
     private String issue(User user, TokenType type, Duration ttl) {
         Instant now = Instant.now();
+
         return Jwts.builder()
-                .subject(String.valueOf(user.getId()))
-                .claim(CLAIM_EMAIL, user.getEmail())
+                .subject(String.valueOf(user.getId())) // "subject" is whose token this is (the user's ID)
+                .claim(CLAIM_EMAIL, user.getEmail()) // Extra data packed into the token
                 .claim(CLAIM_ROLE, user.getRole().name())
                 .claim(CLAIM_TYPE, type.name())
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plus(ttl)))
-                .signWith(key)
-                .compact();
+                .expiration(Date.from(now.plus(ttl))) // When it stops being valid
+                .signWith(key) // Signs it with the secret
+                .compact(); // Turns it into the final string, e.g. "eyJhbGciOiJIUzI1NiJ9..."
     }
 
     // Verifies the signature, the expiry and the token type, or throws
     public AuthenticatedUser parse(String token, TokenType expectedType) {
         try {
-            Claims claims = Jwts.parser()
-                    .verifyWith(key)
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
+            Claims claims = Jwts.parser() // start building a parser
+                    .verifyWith(key) // Checks the signature — proves the token wasn't forged or edited
+                    .build() // finalize — turns the builder into a real JwtParser
+                    .parseSignedClaims(token) // Also checks expiry automatically, throws if expired
+                    .getPayload(); // The actual data inside (subject, email, role, typ...)
 
-            // Both types are signed with the same key, so this claim is what keeps them apart
+            // Reject a valid, unexpired token if it's the wrong kind
+            // (e.g. someone tries to use a refresh token to access a protected endpoint)
             if (!expectedType.name().equals(claims.get(CLAIM_TYPE, String.class))) {
                 throw new UnauthorizedException("Invalid or expired token");
             }
